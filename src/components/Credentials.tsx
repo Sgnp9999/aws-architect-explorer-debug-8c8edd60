@@ -19,7 +19,7 @@ interface CredentialsProps {
 export const Credentials = ({ onSubmit }: CredentialsProps) => {
   const [accessKey, setAccessKey] = useState("");
   const [secretKey, setSecretKey] = useState("");
-  const [region, setRegion] = useState("us-east-1");
+  const [region, setRegion] = useState("ap-south-1");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -38,7 +38,7 @@ export const Credentials = ({ onSubmit }: CredentialsProps) => {
     "us-east-1", "us-east-2", "us-west-1", "us-west-2", 
     "eu-west-1", "eu-west-2", "eu-central-1", 
     "ap-northeast-1", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", 
-    "sa-east-1"
+    "ap-south-1", "sa-east-1"
   ];
 
   return (
