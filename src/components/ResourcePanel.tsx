@@ -1,10 +1,16 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Server, Database, Shield, Network, Globe, Layers } from "lucide-react";
+import { X } from "lucide-react";
+
+import ec2Logo from "../assets/aws-logos/ec2.svg";
+import rdsLogo from "../assets/aws-logos/rds.svg";
+import vpcLogo from "../assets/aws-logos/vpc.svg";
+import igwLogo from "../assets/aws-logos/igw.svg";
+import subnetLogo from "../assets/aws-logos/subnet.svg";
+import sgLogo from "../assets/aws-logos/sg.svg";
 
 interface ResourcePanelProps {
   resource: any;
@@ -15,17 +21,17 @@ export const ResourcePanel = ({ resource, onClose }: ResourcePanelProps) => {
   const getIcon = () => {
     switch (resource.type) {
       case 'vpc':
-        return <Network className="h-5 w-5" />;
+        return <img src={vpcLogo} className="h-5 w-5" alt="VPC" />;
       case 'subnet':
-        return <Layers className="h-5 w-5" />;
+        return <img src={subnetLogo} className="h-5 w-5" alt="Subnet" />;
       case 'ec2':
-        return <Server className="h-5 w-5" />;
+        return <img src={ec2Logo} className="h-5 w-5" alt="EC2" />;
       case 'rds':
-        return <Database className="h-5 w-5" />;
+        return <img src={rdsLogo} className="h-5 w-5" alt="RDS" />;
       case 'sg':
-        return <Shield className="h-5 w-5" />;
+        return <img src={sgLogo} className="h-5 w-5" alt="Security Group" />;
       case 'igw':
-        return <Globe className="h-5 w-5" />;
+        return <img src={igwLogo} className="h-5 w-5" alt="Internet Gateway" />;
       default:
         return null;
     }

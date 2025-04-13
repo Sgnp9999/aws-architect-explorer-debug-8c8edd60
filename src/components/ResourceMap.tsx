@@ -2,6 +2,13 @@ import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Network, Shield, Server, Database, Globe, AlertTriangle, Layers } from "lucide-react";
 
+import ec2Logo from "../assets/aws-logos/ec2.svg";
+import rdsLogo from "../assets/aws-logos/rds.svg";
+import vpcLogo from "../assets/aws-logos/vpc.svg";
+import igwLogo from "../assets/aws-logos/igw.svg";
+import subnetLogo from "../assets/aws-logos/subnet.svg";
+import sgLogo from "../assets/aws-logos/sg.svg";
+
 interface ResourceMapProps {
   data: any;
   onResourceClick: (resource: any) => void;
@@ -14,7 +21,32 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   const [resourcePositions, setResourcePositions] = useState<any>({});
   const [hoveredConnection, setHoveredConnection] = useState<any>(null);
   const [scale, setScale] = useState(1);
-  
+  const [awsLogos, setAwsLogos] = useState<Record<string, HTMLImageElement>>({});
+
+  useEffect(() => {
+    const logoSources = {
+      ec2: ec2Logo,
+      rds: rdsLogo,
+      vpc: vpcLogo,
+      igw: igwLogo,
+      subnet: subnetLogo,
+      sg: sgLogo
+    };
+    
+    const loadedImages: Record<string, HTMLImageElement> = {};
+    
+    Object.entries(logoSources).forEach(([key, src]) => {
+      const img = new Image();
+      img.src = src;
+      img.onload = () => {
+        loadedImages[key] = img;
+        if (Object.keys(loadedImages).length === Object.keys(logoSources).length) {
+          setAwsLogos(loadedImages);
+        }
+      };
+    });
+  }, []);
+
   const getTooltipPosition = (x: number, y: number) => {
     if (!containerRef.current) return { x: 0, y: 0 };
     const rect = containerRef.current.getBoundingClientRect();
@@ -111,7 +143,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   }, [data]);
 
   useEffect(() => {
-    if (!canvasRef.current || !data || Object.keys(resourcePositions).length === 0) return;
+    if (!canvasRef.current || !data || Object.keys(resourcePositions).length === 0 || Object.keys(awsLogos).length === 0) return;
     
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -130,9 +162,13 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
         ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
         
+        if (awsLogos.vpc) {
+          ctx.drawImage(awsLogos.vpc, pos.x + 5, pos.y + 5, 20, 20);
+        }
+        
         ctx.fillStyle = '#000';
         ctx.font = 'bold 16px Arial';
-        ctx.fillText(`VPC: ${vpc.name}`, pos.x + 10, pos.y + 25);
+        ctx.fillText(`VPC: ${vpc.name}`, pos.x + 30, pos.y + 20);
         ctx.font = '12px Arial';
         ctx.fillText(`CIDR: ${vpc.cidr}`, pos.x + 10, pos.y + 45);
       });
@@ -153,13 +189,9 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.fill();
           ctx.stroke();
           
-          ctx.fillStyle = '#0284c7';
-          ctx.beginPath();
-          ctx.moveTo(pos.x - 10, pos.y);
-          ctx.lineTo(pos.x + 10, pos.y);
-          ctx.moveTo(pos.x, pos.y - 10);
-          ctx.lineTo(pos.x, pos.y + 10);
-          ctx.stroke();
+          if (awsLogos.igw) {
+            ctx.drawImage(awsLogos.igw, pos.x - 15, pos.y - 15, 30, 30);
+          }
           
           ctx.fillStyle = '#000';
           ctx.font = '10px Arial';
@@ -181,9 +213,13 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
           ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
           
+          if (awsLogos.subnet) {
+            ctx.drawImage(awsLogos.subnet, pos.x + 5, pos.y + 5, 15, 15);
+          }
+          
           ctx.fillStyle = '#000';
           ctx.font = 'bold 12px Arial';
-          ctx.fillText(`Subnet: ${subnet.name}`, pos.x + 5, pos.y + 15);
+          ctx.fillText(`Subnet: ${subnet.name}`, pos.x + 25, pos.y + 15);
           ctx.font = '10px Arial';
           ctx.fillText(`CIDR: ${subnet.cidr}`, pos.x + 5, pos.y + 30);
           ctx.fillText(`${isPublic ? 'Public' : 'Private'}`, pos.x + 5, pos.y + 45);
@@ -206,23 +242,21 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.fill();
           ctx.stroke();
           ctx.setLineDash([]);
+          
+          if (awsLogos.sg) {
+            ctx.drawImage(awsLogos.sg, pos.x - 5, pos.y - 5, 12, 12);
+          }
         }
         
-        ctx.fillStyle = '#f1f5f9';
-        ctx.strokeStyle = '#475569';
-        ctx.lineWidth = 1;
-        ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
-        ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
-        
-        ctx.strokeStyle = '#475569';
-        ctx.beginPath();
-        ctx.moveTo(pos.x + 5, pos.y + 8);
-        ctx.lineTo(pos.x + pos.width - 5, pos.y + 8);
-        ctx.moveTo(pos.x + 5, pos.y + 15);
-        ctx.lineTo(pos.x + pos.width - 5, pos.y + 15);
-        ctx.moveTo(pos.x + 5, pos.y + 22);
-        ctx.lineTo(pos.x + pos.width - 5, pos.y + 22);
-        ctx.stroke();
+        if (awsLogos.ec2) {
+          ctx.drawImage(awsLogos.ec2, pos.x, pos.y, pos.width, pos.height);
+        } else {
+          ctx.fillStyle = '#f1f5f9';
+          ctx.strokeStyle = '#475569';
+          ctx.lineWidth = 1;
+          ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
+          ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
+        }
       });
     }
     
@@ -241,32 +275,21 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.fill();
           ctx.stroke();
           ctx.setLineDash([]);
+          
+          if (awsLogos.sg) {
+            ctx.drawImage(awsLogos.sg, pos.x - 5, pos.y - 5, 12, 12);
+          }
         }
         
-        ctx.fillStyle = '#f8fafc';
-        ctx.strokeStyle = '#0369a1';
-        ctx.lineWidth = 1;
-        ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
-        ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
-        
-        ctx.strokeStyle = '#0369a1';
-        ctx.beginPath();
-        ctx.moveTo(pos.x + 8, pos.y + 6);
-        ctx.lineTo(pos.x + pos.width - 8, pos.y + 6);
-        ctx.stroke();
-        
-        ctx.beginPath();
-        ctx.moveTo(pos.x + pos.width/2, pos.y + 6);
-        ctx.lineTo(pos.x + pos.width/2, pos.y + pos.height - 6);
-        ctx.stroke();
-        
-        ctx.beginPath();
-        ctx.ellipse(pos.x + pos.width/2, pos.y + 6, pos.width/2 - 8, 3, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        
-        ctx.beginPath();
-        ctx.ellipse(pos.x + pos.width/2, pos.y + pos.height - 6, pos.width/2 - 8, 3, 0, 0, Math.PI * 2);
-        ctx.stroke();
+        if (awsLogos.rds) {
+          ctx.drawImage(awsLogos.rds, pos.x, pos.y, pos.width, pos.height);
+        } else {
+          ctx.fillStyle = '#f8fafc';
+          ctx.strokeStyle = '#0369a1';
+          ctx.lineWidth = 1;
+          ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
+          ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
+        }
       });
     }
     
@@ -331,7 +354,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         }
       });
     }
-  }, [data, resourcePositions, visibleResources]);
+  }, [data, resourcePositions, visibleResources, awsLogos]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !data) return;
@@ -546,7 +569,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       
       <div className="absolute bottom-2 right-2 flex space-x-2 bg-white/70 dark:bg-gray-800/70 rounded p-1 text-xs">
         <div className="flex items-center">
-          <Network className="h-3 w-3 mr-1 text-blue-500" />
+          <img src={vpcLogo} alt="VPC" className="h-3 w-3 mr-1" />
           <span>VPC</span>
         </div>
         <div className="flex items-center">
@@ -558,19 +581,19 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           <span>Private Subnet</span>
         </div>
         <div className="flex items-center">
-          <Server className="h-3 w-3 mr-1 text-gray-500" />
+          <img src={ec2Logo} alt="EC2" className="h-3 w-3 mr-1" />
           <span>EC2</span>
         </div>
         <div className="flex items-center">
-          <Database className="h-3 w-3 mr-1 text-blue-600" />
+          <img src={rdsLogo} alt="RDS" className="h-3 w-3 mr-1" />
           <span>RDS</span>
         </div>
         <div className="flex items-center">
-          <Globe className="h-3 w-3 mr-1 text-sky-500" />
+          <img src={igwLogo} alt="IGW" className="h-3 w-3 mr-1" />
           <span>IGW</span>
         </div>
         <div className="flex items-center">
-          <Shield className="h-3 w-3 mr-1 text-gray-500" />
+          <img src={sgLogo} alt="Security Group" className="h-3 w-3 mr-1" />
           <span>Security Group</span>
         </div>
       </div>
