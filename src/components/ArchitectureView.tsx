@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -35,16 +34,11 @@ export const ArchitectureView = ({ credentials }: ArchitectureViewProps) => {
     "vpc", "subnet", "igw", "ec2", "rds", "sg"
   ]);
   
-  // In a real application, you would fetch actual AWS data here
   useEffect(() => {
     const fetchAwsData = async () => {
       setLoading(true);
       try {
-        // Simulate API call to AWS with the credentials
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // In a real app, you would use the AWS SDK to fetch data
-        // For this demo, we'll use mock data
         setAwsData(mockAwsData);
       } catch (error) {
         console.error("Error fetching AWS data:", error);
@@ -98,7 +92,6 @@ export const ArchitectureView = ({ credentials }: ArchitectureViewProps) => {
         vpc.id.toLowerCase().includes(query) || 
         vpc.name.toLowerCase().includes(query)
       ),
-      // Filter other resource types similarly
     };
   };
 
@@ -248,7 +241,7 @@ const InfoSidebar = ({
   toggleDarkMode: () => void;
 }) => {
   return (
-    <Sidebar defaultCollapsed={false} className="border-r border-gray-200 dark:border-gray-700">
+    <Sidebar className="border-r border-gray-200 dark:border-gray-700">
       <SidebarHeader className="p-4">
         <div className="flex items-center justify-between">
           <Cloud className="h-6 w-6 text-blue-500" />

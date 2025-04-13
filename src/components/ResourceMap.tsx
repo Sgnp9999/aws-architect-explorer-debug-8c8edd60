@@ -1,4 +1,3 @@
-
 import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Network, Shield, Server, Database, Globe, AlertTriangle, Layers } from "lucide-react";
@@ -16,7 +15,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   const [hoveredConnection, setHoveredConnection] = useState<any>(null);
   const [scale, setScale] = useState(1);
   
-  // Convert canvas coordinates to DOM position for tooltips
   const getTooltipPosition = (x: number, y: number) => {
     if (!containerRef.current) return { x: 0, y: 0 };
     const rect = containerRef.current.getBoundingClientRect();
@@ -26,13 +24,11 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     };
   };
 
-  // Calculate resource positions
   useEffect(() => {
     if (!data) return;
     
     const positions: any = {};
     
-    // Position VPCs
     const vpcsCount = data.vpcs.length;
     const vpcsPerRow = Math.ceil(Math.sqrt(vpcsCount));
     const vpcWidth = 800;
@@ -45,7 +41,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       
       positions[`vpc-${vpc.id}`] = { x: vpcX, y: vpcY, width: vpcWidth, height: vpcHeight };
       
-      // Position Internet Gateway
       if (vpc.internetGateway) {
         positions[`igw-${vpc.internetGateway.id}`] = {
           x: vpcX + vpcWidth / 2,
@@ -55,7 +50,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         };
       }
       
-      // Position Subnets
       const subnetsPerRow = Math.ceil(Math.sqrt(vpc.subnets.length));
       const subnetWidth = (vpcWidth - 40) / subnetsPerRow;
       const subnetHeight = (vpcHeight - 60) / Math.ceil(vpc.subnets.length / subnetsPerRow);
@@ -71,7 +65,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           height: subnetHeight - 10
         };
         
-        // Position EC2 Instances
         const instances = data.ec2Instances.filter((ec2: any) => ec2.subnetId === subnet.id);
         const instancesPerRow = Math.ceil(Math.sqrt(instances.length));
         const instanceWidth = 30;
@@ -91,7 +84,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           };
         });
         
-        // Position RDS Instances
         const rdsInstances = data.rdsInstances.filter((rds: any) => 
           rds.subnetGroup.includes(subnet.id)
         );
@@ -118,7 +110,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     setResourcePositions(positions);
   }, [data]);
 
-  // Draw the architecture diagram
   useEffect(() => {
     if (!canvasRef.current || !data || Object.keys(resourcePositions).length === 0) return;
     
@@ -126,10 +117,8 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Draw VPCs
     if (visibleResources.includes('vpc')) {
       data.vpcs.forEach((vpc: any) => {
         const pos = resourcePositions[`vpc-${vpc.id}`];
@@ -141,7 +130,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
         ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
         
-        // Draw VPC name
         ctx.fillStyle = '#000';
         ctx.font = 'bold 16px Arial';
         ctx.fillText(`VPC: ${vpc.name}`, pos.x + 10, pos.y + 25);
@@ -150,7 +138,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       });
     }
     
-    // Draw Internet Gateways
     if (visibleResources.includes('igw')) {
       data.vpcs.forEach((vpc: any) => {
         if (vpc.internetGateway) {
@@ -166,7 +153,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.fill();
           ctx.stroke();
           
-          // Draw icon
           ctx.fillStyle = '#0284c7';
           ctx.beginPath();
           ctx.moveTo(pos.x - 10, pos.y);
@@ -175,7 +161,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.lineTo(pos.x, pos.y + 10);
           ctx.stroke();
           
-          // Draw name
           ctx.fillStyle = '#000';
           ctx.font = '10px Arial';
           ctx.fillText('IGW', pos.x - 10, pos.y + 30);
@@ -183,7 +168,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       });
     }
     
-    // Draw Subnets
     if (visibleResources.includes('subnet')) {
       data.vpcs.forEach((vpc: any) => {
         vpc.subnets.forEach((subnet: any) => {
@@ -197,7 +181,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
           ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
           
-          // Draw subnet name
           ctx.fillStyle = '#000';
           ctx.font = 'bold 12px Arial';
           ctx.fillText(`Subnet: ${subnet.name}`, pos.x + 5, pos.y + 15);
@@ -208,32 +191,29 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       });
     }
     
-    // Draw EC2 Instances
     if (visibleResources.includes('ec2')) {
       data.ec2Instances.forEach((ec2: any) => {
         const pos = resourcePositions[`ec2-${ec2.id}`];
         if (!pos) return;
         
-        // Draw security group boundary if visible
         if (visibleResources.includes('sg')) {
           ctx.fillStyle = 'rgba(226, 232, 240, 0.3)';
           ctx.strokeStyle = '#64748b';
-          ctx.strokeDashArray = [5, 5];
+          ctx.setLineDash([5, 5]);
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.ellipse(pos.x + pos.width/2, pos.y + pos.height/2, pos.width * 0.8, pos.height * 0.8, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
+          ctx.setLineDash([]);
         }
         
-        // Draw EC2 icon
         ctx.fillStyle = '#f1f5f9';
         ctx.strokeStyle = '#475569';
         ctx.lineWidth = 1;
         ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
         ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
         
-        // Draw EC2 icon
         ctx.strokeStyle = '#475569';
         ctx.beginPath();
         ctx.moveTo(pos.x + 5, pos.y + 8);
@@ -246,32 +226,29 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       });
     }
     
-    // Draw RDS Instances
     if (visibleResources.includes('rds')) {
       data.rdsInstances.forEach((rds: any) => {
         const pos = resourcePositions[`rds-${rds.id}`];
         if (!pos) return;
         
-        // Draw security group boundary if visible
         if (visibleResources.includes('sg')) {
           ctx.fillStyle = 'rgba(226, 232, 240, 0.3)';
           ctx.strokeStyle = '#64748b';
-          ctx.strokeDashArray = [5, 5];
+          ctx.setLineDash([5, 5]);
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.ellipse(pos.x + pos.width/2, pos.y + pos.height/2, pos.width * 0.8, pos.height * 0.8, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
+          ctx.setLineDash([]);
         }
         
-        // Draw RDS icon
         ctx.fillStyle = '#f8fafc';
         ctx.strokeStyle = '#0369a1';
         ctx.lineWidth = 1;
         ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
         ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
         
-        // Draw database icon
         ctx.strokeStyle = '#0369a1';
         ctx.beginPath();
         ctx.moveTo(pos.x + 8, pos.y + 6);
@@ -293,7 +270,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       });
     }
     
-    // Draw connections
     if (visibleResources.includes('ec2') && visibleResources.includes('rds')) {
       data.connections.forEach((connection: any) => {
         const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
@@ -312,6 +288,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         
         if (connection.status === 'allowed') {
           ctx.strokeStyle = '#22c55e';
+          ctx.setLineDash([]);
         } else {
           ctx.strokeStyle = '#ef4444';
           ctx.setLineDash([5, 3]);
@@ -321,7 +298,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         ctx.stroke();
         ctx.setLineDash([]);
         
-        // Draw direction arrow
         const angle = Math.atan2(targetY - sourceY, targetX - sourceX);
         const arrowSize = 8;
         
@@ -337,7 +313,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         );
         ctx.stroke();
         
-        // For blocked connections, add an alert icon
         if (connection.status === 'blocked') {
           const midX = (sourceX + targetX) / 2;
           const midY = (sourceY + targetY) / 2;
@@ -356,10 +331,8 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         }
       });
     }
-    
   }, [data, resourcePositions, visibleResources]);
 
-  // Handle click on canvas to select resources
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !data) return;
     
@@ -368,14 +341,12 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     const x = (e.clientX - rect.left) / scale;
     const y = (e.clientY - rect.top) / scale;
     
-    // Check if click is on a resource
     for (const [key, pos] of Object.entries(resourcePositions)) {
       const [type, id] = key.split('-');
       if (!visibleResources.includes(type)) continue;
       
       const { x: posX, y: posY, width, height } = pos as any;
       if (x >= posX && x <= posX + width && y >= posY && y <= posY + height) {
-        // Find the resource object
         let resource;
         switch (type) {
           case 'vpc':
@@ -405,7 +376,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       }
     }
     
-    // Check if click is on a connection
     for (const connection of data.connections) {
       const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
       const targetPos = resourcePositions[`rds-${connection.targetId}`];
@@ -417,10 +387,8 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       const targetX = targetPos.x + targetPos.width/2;
       const targetY = targetPos.y + targetPos.height/2;
       
-      // Check if click is near the connection line
       const distance = distanceToLine(x, y, sourceX, sourceY, targetX, targetY);
       if (distance < 10) {
-        // Find the source and target resources
         const source = data.ec2Instances.find((ec2: any) => ec2.id === connection.sourceId);
         const target = data.rdsInstances.find((rds: any) => rds.id === connection.targetId);
         
@@ -438,7 +406,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     }
   };
 
-  // Check distance from point to line
   const distanceToLine = (x: number, y: number, x1: number, y1: number, x2: number, y2: number) => {
     const A = x - x1;
     const B = y - y1;
@@ -468,7 +435,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     return Math.sqrt(dx * dx + dy * dy);
   };
 
-  // Handle mouse move for hovering connections
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !data) return;
     
@@ -477,7 +443,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     const x = (e.clientX - rect.left) / scale;
     const y = (e.clientY - rect.top) / scale;
     
-    // Check if hover is on a connection
     let foundConnection = false;
     for (const connection of data.connections) {
       if (connection.status !== 'blocked') continue;
@@ -492,10 +457,8 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       const targetX = targetPos.x + targetPos.width/2;
       const targetY = targetPos.y + targetPos.height/2;
       
-      // Check if hover is near the connection line
       const distance = distanceToLine(x, y, sourceX, sourceY, targetX, targetY);
       if (distance < 10) {
-        // Find the source and target resources
         const source = data.ec2Instances.find((ec2: any) => ec2.id === connection.sourceId);
         const target = data.rdsInstances.find((rds: any) => rds.id === connection.targetId);
         
@@ -518,7 +481,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     }
   };
 
-  // Set canvas size
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
     
@@ -527,14 +489,14 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       
       const { width, height } = containerRef.current.getBoundingClientRect();
       
-      canvasRef.current.width = width * 2; // For high DPI screens
+      canvasRef.current.width = width * 2;
       canvasRef.current.height = height * 2;
       canvasRef.current.style.width = `${width}px`;
       canvasRef.current.style.height = `${height}px`;
       
       const ctx = canvasRef.current.getContext('2d');
       if (ctx) {
-        ctx.scale(2, 2); // Scale for high DPI
+        ctx.scale(2, 2);
       }
       
       setScale(2);
