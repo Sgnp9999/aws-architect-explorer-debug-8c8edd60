@@ -1,3 +1,4 @@
+
 import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Network, Shield, Server, Database, Globe, AlertTriangle, Layers } from "lucide-react";
@@ -62,50 +63,53 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     const positions: any = {};
     
     const vpcsCount = data.vpcs.length;
+    // Increase spacing between VPCs
     const vpcsPerRow = Math.ceil(Math.sqrt(vpcsCount));
-    const vpcWidth = 800;
-    const vpcHeight = 600;
-    const vpcSpacing = 100;
+    const vpcWidth = 900;  // Increased from 800
+    const vpcHeight = 700; // Increased from 600
+    const vpcSpacing = 200; // Increased from 100
     
     data.vpcs.forEach((vpc: any, vpcIndex: number) => {
-      const vpcX = (vpcIndex % vpcsPerRow) * (vpcWidth + vpcSpacing) + 100;
-      const vpcY = Math.floor(vpcIndex / vpcsPerRow) * (vpcHeight + vpcSpacing) + 100;
+      const vpcX = (vpcIndex % vpcsPerRow) * (vpcWidth + vpcSpacing) + 150; // Increased padding
+      const vpcY = Math.floor(vpcIndex / vpcsPerRow) * (vpcHeight + vpcSpacing) + 150; // Increased padding
       
       positions[`vpc-${vpc.id}`] = { x: vpcX, y: vpcY, width: vpcWidth, height: vpcHeight };
       
       if (vpc.internetGateway) {
         positions[`igw-${vpc.internetGateway.id}`] = {
           x: vpcX + vpcWidth / 2,
-          y: vpcY - 50,
-          width: 40,
-          height: 40
+          y: vpcY - 80, // Increased distance from VPC
+          width: 50,
+          height: 50
         };
       }
       
       const subnetsPerRow = Math.ceil(Math.sqrt(vpc.subnets.length));
-      const subnetWidth = (vpcWidth - 40) / subnetsPerRow;
-      const subnetHeight = (vpcHeight - 60) / Math.ceil(vpc.subnets.length / subnetsPerRow);
+      // Add more space for subnets
+      const subnetWidth = (vpcWidth - 80) / subnetsPerRow; // More padding
+      const subnetHeight = (vpcHeight - 120) / Math.ceil(vpc.subnets.length / subnetsPerRow); // More padding
       
       vpc.subnets.forEach((subnet: any, subnetIndex: number) => {
-        const subnetX = vpcX + 20 + (subnetIndex % subnetsPerRow) * subnetWidth;
-        const subnetY = vpcY + 40 + Math.floor(subnetIndex / subnetsPerRow) * subnetHeight;
+        const subnetX = vpcX + 40 + (subnetIndex % subnetsPerRow) * subnetWidth;
+        const subnetY = vpcY + 80 + Math.floor(subnetIndex / subnetsPerRow) * subnetHeight;
         
         positions[`subnet-${subnet.id}`] = {
           x: subnetX,
           y: subnetY,
-          width: subnetWidth - 10,
-          height: subnetHeight - 10
+          width: subnetWidth - 20, // Increase space between subnets
+          height: subnetHeight - 20  // Increase space between subnets
         };
         
         const instances = data.ec2Instances.filter((ec2: any) => ec2.subnetId === subnet.id);
+        // Better distribute EC2 instances
         const instancesPerRow = Math.ceil(Math.sqrt(instances.length));
-        const instanceWidth = 30;
-        const instanceHeight = 30;
-        const instanceSpacing = 10;
+        const instanceWidth = 40; // Larger instances
+        const instanceHeight = 40; // Larger instances
+        const instanceSpacing = 25; // More space between instances
         
         instances.forEach((instance: any, instanceIndex: number) => {
-          const instanceX = subnetX + 20 + (instanceIndex % instancesPerRow) * (instanceWidth + instanceSpacing);
-          const instanceY = subnetY + 40 + Math.floor(instanceIndex / instancesPerRow) * (instanceHeight + instanceSpacing);
+          const instanceX = subnetX + 30 + (instanceIndex % instancesPerRow) * (instanceWidth + instanceSpacing);
+          const instanceY = subnetY + 60 + Math.floor(instanceIndex / instancesPerRow) * (instanceHeight + instanceSpacing);
           
           positions[`ec2-${instance.id}`] = {
             x: instanceX,
@@ -119,14 +123,15 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         const rdsInstances = data.rdsInstances.filter((rds: any) => 
           rds.subnetGroup.includes(subnet.id)
         );
+        // Better distribute RDS instances
         const rdsPerRow = Math.ceil(Math.sqrt(rdsInstances.length));
-        const rdsWidth = 30;
-        const rdsHeight = 30;
-        const rdsSpacing = 10;
+        const rdsWidth = 40; // Larger RDS instances
+        const rdsHeight = 40; // Larger RDS instances
+        const rdsSpacing = 25; // More space between RDS instances
         
         rdsInstances.forEach((rds: any, rdsIndex: number) => {
-          const rdsX = subnetX + subnetWidth - 60 - (rdsIndex % rdsPerRow) * (rdsWidth + rdsSpacing);
-          const rdsY = subnetY + subnetHeight - 60 - Math.floor(rdsIndex / rdsPerRow) * (rdsHeight + rdsSpacing);
+          const rdsX = subnetX + subnetWidth - 80 - (rdsIndex % rdsPerRow) * (rdsWidth + rdsSpacing);
+          const rdsY = subnetY + subnetHeight - 80 - Math.floor(rdsIndex / rdsPerRow) * (rdsHeight + rdsSpacing);
           
           positions[`rds-${rds.id}`] = {
             x: rdsX,
@@ -163,14 +168,14 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
         
         if (awsLogos.vpc) {
-          ctx.drawImage(awsLogos.vpc, pos.x + 5, pos.y + 5, 20, 20);
+          ctx.drawImage(awsLogos.vpc, pos.x + 10, pos.y + 10, 28, 28);
         }
         
         ctx.fillStyle = '#000';
-        ctx.font = 'bold 16px Arial';
-        ctx.fillText(`VPC: ${vpc.name}`, pos.x + 30, pos.y + 20);
-        ctx.font = '12px Arial';
-        ctx.fillText(`CIDR: ${vpc.cidr}`, pos.x + 10, pos.y + 45);
+        ctx.font = 'bold 18px Arial'; // Increased font size
+        ctx.fillText(`VPC: ${vpc.name}`, pos.x + 50, pos.y + 25);
+        ctx.font = '14px Arial'; // Increased font size
+        ctx.fillText(`CIDR: ${vpc.cidr}`, pos.x + 15, pos.y + 55);
       });
     }
     
@@ -185,17 +190,17 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.strokeStyle = '#0284c7';
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.arc(pos.x, pos.y, 20, 0, Math.PI * 2);
+          ctx.arc(pos.x, pos.y, 25, 0, Math.PI * 2); // Larger circle
           ctx.fill();
           ctx.stroke();
           
           if (awsLogos.igw) {
-            ctx.drawImage(awsLogos.igw, pos.x - 15, pos.y - 15, 30, 30);
+            ctx.drawImage(awsLogos.igw, pos.x - 18, pos.y - 18, 36, 36);
           }
           
           ctx.fillStyle = '#000';
-          ctx.font = '10px Arial';
-          ctx.fillText('IGW', pos.x - 10, pos.y + 30);
+          ctx.font = '12px Arial'; // Slightly larger font
+          ctx.fillText('IGW', pos.x - 12, pos.y + 40);
         }
       });
     }
@@ -214,15 +219,15 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
           
           if (awsLogos.subnet) {
-            ctx.drawImage(awsLogos.subnet, pos.x + 5, pos.y + 5, 15, 15);
+            ctx.drawImage(awsLogos.subnet, pos.x + 8, pos.y + 8, 18, 18);
           }
           
           ctx.fillStyle = '#000';
-          ctx.font = 'bold 12px Arial';
-          ctx.fillText(`Subnet: ${subnet.name}`, pos.x + 25, pos.y + 15);
-          ctx.font = '10px Arial';
-          ctx.fillText(`CIDR: ${subnet.cidr}`, pos.x + 5, pos.y + 30);
-          ctx.fillText(`${isPublic ? 'Public' : 'Private'}`, pos.x + 5, pos.y + 45);
+          ctx.font = 'bold 14px Arial'; // Increased font size
+          ctx.fillText(`Subnet: ${subnet.name.substring(0, 15)}`, pos.x + 30, pos.y + 20);
+          ctx.font = '12px Arial'; // Increased font size
+          ctx.fillText(`CIDR: ${subnet.cidr}`, pos.x + 10, pos.y + 40);
+          ctx.fillText(`${isPublic ? 'Public' : 'Private'}`, pos.x + 10, pos.y + 60);
         });
       });
     }
@@ -238,13 +243,13 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.setLineDash([5, 5]);
           ctx.lineWidth = 1;
           ctx.beginPath();
-          ctx.ellipse(pos.x + pos.width/2, pos.y + pos.height/2, pos.width * 0.8, pos.height * 0.8, 0, 0, Math.PI * 2);
+          ctx.ellipse(pos.x + pos.width/2, pos.y + pos.height/2, pos.width * 0.9, pos.height * 0.9, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           ctx.setLineDash([]);
           
           if (awsLogos.sg) {
-            ctx.drawImage(awsLogos.sg, pos.x - 5, pos.y - 5, 12, 12);
+            ctx.drawImage(awsLogos.sg, pos.x - 10, pos.y - 10, 15, 15);
           }
         }
         
@@ -257,6 +262,11 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
           ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
         }
+        
+        // Add identifier above the EC2 instance
+        ctx.fillStyle = '#000';
+        ctx.font = '10px Arial';
+        ctx.fillText(ec2.instanceId.split('-').pop(), pos.x, pos.y - 5);
       });
     }
     
@@ -271,13 +281,13 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.setLineDash([5, 5]);
           ctx.lineWidth = 1;
           ctx.beginPath();
-          ctx.ellipse(pos.x + pos.width/2, pos.y + pos.height/2, pos.width * 0.8, pos.height * 0.8, 0, 0, Math.PI * 2);
+          ctx.ellipse(pos.x + pos.width/2, pos.y + pos.height/2, pos.width * 0.9, pos.height * 0.9, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           ctx.setLineDash([]);
           
           if (awsLogos.sg) {
-            ctx.drawImage(awsLogos.sg, pos.x - 5, pos.y - 5, 12, 12);
+            ctx.drawImage(awsLogos.sg, pos.x - 10, pos.y - 10, 15, 15);
           }
         }
         
@@ -290,6 +300,11 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
           ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
         }
+        
+        // Add identifier above the RDS instance
+        ctx.fillStyle = '#000';
+        ctx.font = '10px Arial';
+        ctx.fillText(rds.id.split('-').pop(), pos.x, pos.y - 5);
       });
     }
     
@@ -344,13 +359,13 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.strokeStyle = '#ef4444';
           ctx.lineWidth = 1;
           ctx.beginPath();
-          ctx.arc(midX, midY, 10, 0, Math.PI * 2);
+          ctx.arc(midX, midY, 12, 0, Math.PI * 2); // Larger circle
           ctx.fill();
           ctx.stroke();
           
           ctx.fillStyle = '#ef4444';
-          ctx.font = 'bold 12px Arial';
-          ctx.fillText('!', midX - 2, midY + 4);
+          ctx.font = 'bold 14px Arial'; // Larger font
+          ctx.fillText('!', midX - 3, midY + 5);
         }
       });
     }
@@ -567,36 +582,37 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         </TooltipProvider>
       )}
       
-      <div className="absolute bottom-2 right-2 flex space-x-2 bg-white/70 dark:bg-gray-800/70 rounded p-1 text-xs">
+      <div className="absolute bottom-4 right-4 flex flex-wrap gap-2 bg-white/80 dark:bg-gray-800/80 rounded p-2 text-xs shadow-md">
         <div className="flex items-center">
-          <img src={vpcLogo} alt="VPC" className="h-3 w-3 mr-1" />
+          <img src={vpcLogo} alt="VPC" className="h-4 w-4 mr-1" />
           <span>VPC</span>
         </div>
         <div className="flex items-center">
-          <Layers className="h-3 w-3 mr-1 text-emerald-500" />
+          <Layers className="h-4 w-4 mr-1 text-emerald-500" />
           <span>Public Subnet</span>
         </div>
         <div className="flex items-center">
-          <Layers className="h-3 w-3 mr-1 text-orange-500" />
+          <Layers className="h-4 w-4 mr-1 text-orange-500" />
           <span>Private Subnet</span>
         </div>
         <div className="flex items-center">
-          <img src={ec2Logo} alt="EC2" className="h-3 w-3 mr-1" />
+          <img src={ec2Logo} alt="EC2" className="h-4 w-4 mr-1" />
           <span>EC2</span>
         </div>
         <div className="flex items-center">
-          <img src={rdsLogo} alt="RDS" className="h-3 w-3 mr-1" />
+          <img src={rdsLogo} alt="RDS" className="h-4 w-4 mr-1" />
           <span>RDS</span>
         </div>
         <div className="flex items-center">
-          <img src={igwLogo} alt="IGW" className="h-3 w-3 mr-1" />
+          <img src={igwLogo} alt="IGW" className="h-4 w-4 mr-1" />
           <span>IGW</span>
         </div>
         <div className="flex items-center">
-          <img src={sgLogo} alt="Security Group" className="h-3 w-3 mr-1" />
+          <img src={sgLogo} alt="Security Group" className="h-4 w-4 mr-1" />
           <span>Security Group</span>
         </div>
       </div>
     </div>
   );
 };
+
