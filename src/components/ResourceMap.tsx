@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Network, Shield, Server, Database, Globe, AlertTriangle, Layers } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
@@ -56,17 +57,19 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     });
   }, []);
 
+  // Add this function to calculate the tooltip position correctly
   const getTooltipPosition = (x: number, y: number) => {
     if (!containerRef.current) return { x: 0, y: 0 };
     const rect = containerRef.current.getBoundingClientRect();
     return {
-      x: (x * scale + pan.x) * zoomLevel[0] + rect.left,
-      y: (y * scale + pan.y) * zoomLevel[0] + rect.top
+      x: x * zoomLevel[0] + pan.x * zoomLevel[0] + rect.left,
+      y: y * zoomLevel[0] + pan.y * zoomLevel[0] + rect.top
     };
   };
 
   useEffect(() => {
     if (!data) return;
+    
     
     const positions: any = {};
     
@@ -153,6 +156,8 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
 
   useEffect(() => {
     if (!canvasRef.current || !data || Object.keys(resourcePositions).length === 0 || Object.keys(awsLogos).length === 0) return;
+    
+    
     
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -763,144 +768,4 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
             {resource.dbName && <div className="text-sm">DB Name: {resource.dbName}</div>}
             <div className="text-sm">Engine: {resource.engine} {resource.engineVersion}</div>
             <div className="text-sm">Status: {resource.status}</div>
-            <div className="text-sm">Endpoint: {resource.endpoint}</div>
-            <div className="text-sm">Port: {resource.port}</div>
-            <div className="text-sm">Security Groups: {resource.securityGroups?.length || 0}</div>
-          </div>
-        );
-      case 'igw':
-        return (
-          <div className="space-y-2">
-            <div className="font-medium">Internet Gateway</div>
-            <div className="text-sm">ID: {resource.id}</div>
-            <div className="text-sm">VPC: {resource.vpcName || resource.vpcId}</div>
-            <div className="text-sm">State: {resource.state}</div>
-          </div>
-        );
-      default:
-        return (
-          <div className="space-y-2">
-            <div className="font-medium">Resource {resource.id}</div>
-            <div className="text-sm">Type: {resource.type}</div>
-          </div>
-        );
-    }
-  };
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-800 border-b dark:border-gray-700">
-        <div className="flex items-center space-x-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleResetView}
-            className="text-xs"
-          >
-            Reset View
-          </Button>
-        </div>
-        <div className="flex items-center w-48 mr-4">
-          <span className="text-xs mr-2">Zoom:</span>
-          <Slider
-            value={zoomLevel}
-            onValueChange={handleZoomChange}
-            min={0.5}
-            max={2}
-            step={0.1}
-            className="w-32"
-          />
-          <span className="text-xs ml-2">{Math.round(zoomLevel[0] * 100)}%</span>
-        </div>
-      </div>
-      
-      <div ref={containerRef} className="w-full flex-1 relative overflow-hidden">
-        <canvas
-          ref={canvasRef}
-          onClick={handleCanvasClick}
-          onMouseMove={handleMouseMove}
-          onMouseDown={handleMouseDown}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
-          className="cursor-grab"
-        />
-        
-        {hoveredResource && (
-          <HoverCard open={true}>
-            <HoverCardTrigger asChild>
-              <div 
-                className="absolute w-1 h-1 bg-transparent" 
-                style={{ 
-                  left: getTooltipPosition(hoveredResource.x, hoveredResource.y).x, 
-                  top: getTooltipPosition(hoveredResource.x, hoveredResource.y).y 
-                }}
-              />
-            </HoverCardTrigger>
-            <HoverCardContent 
-              side="top" 
-              align="center" 
-              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 shadow-lg max-w-sm">
-              {getResourceSummary(hoveredResource)}
-            </HoverCardContent>
-          </HoverCard>
-        )}
-        
-        {hoveredConnection && (
-          <TooltipProvider>
-            <Tooltip open={true}>
-              <TooltipTrigger asChild>
-                <div 
-                  className="absolute w-1 h-1 bg-transparent" 
-                  style={{ 
-                    left: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).x, 
-                    top: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).y 
-                  }}
-                />
-              </TooltipTrigger>
-              <TooltipContent className="bg-red-50 text-red-700 border border-red-200 p-2 max-w-xs">
-                <div className="flex items-start space-x-2">
-                  <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-medium">Connection Blocked</div>
-                    <div className="text-sm mt-1">{hoveredConnection.errorMessage}</div>
-                  </div>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-      </div>
-      
-      <div className="absolute bottom-4 right-4 flex flex-wrap gap-2 bg-white/80 dark:bg-gray-800/80 rounded p-2 text-xs shadow-md">
-        <div className="flex items-center">
-          <img src={vpcLogo} alt="VPC" className="h-4 w-4 mr-1" />
-          <span>VPC</span>
-        </div>
-        <div className="flex items-center">
-          <Layers className="h-4 w-4 mr-1 text-emerald-500" />
-          <span>Public Subnet</span>
-        </div>
-        <div className="flex items-center">
-          <Layers className="h-4 w-4 mr-1 text-orange-500" />
-          <span>Private Subnet</span>
-        </div>
-        <div className="flex items-center">
-          <img src={ec2Logo} alt="EC2" className="h-4 w-4 mr-1" />
-          <span>EC2</span>
-        </div>
-        <div className="flex items-center">
-          <img src={rdsLogo} alt="RDS" className="h-4 w-4 mr-1" />
-          <span>RDS</span>
-        </div>
-        <div className="flex items-center">
-          <img src={igwLogo} alt="IGW" className="h-4 w-4 mr-1" />
-          <span>IGW</span>
-        </div>
-        <div className="flex items-center">
-          <img src={sgLogo} alt="Security Group" className="h-4 w-4 mr-1" />
-          <span>Security Group</span>
-        </div>
-      </div>
-    </div>
-  );
-};
+            <div className="
