@@ -69,20 +69,18 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     
     const positions: any = {};
     
-    // Adjust layout to match AWS architecture diagram
     const vpcsCount = data.vpcs.length;
     const vpcsPerRow = Math.ceil(Math.sqrt(vpcsCount));
-    const vpcWidth = 1200;  // Increased width to accommodate more components
-    const vpcHeight = 1000; // Increased height to accommodate more components
-    const vpcSpacing = 400;
+    const vpcWidth = 1000;
+    const vpcHeight = 800;
+    const vpcSpacing = 300;
     
     data.vpcs.forEach((vpc: any, vpcIndex: number) => {
       const vpcX = (vpcIndex % vpcsPerRow) * (vpcWidth + vpcSpacing) + 150;
-      const vpcY = Math.floor(vpcIndex / vpcsPerRow) * (vpcHeight + vpcSpacing) + 200; // More space at top
+      const vpcY = Math.floor(vpcIndex / vpcsPerRow) * (vpcHeight + vpcSpacing) + 150;
       
       positions[`vpc-${vpc.id}`] = { x: vpcX, y: vpcY, width: vpcWidth, height: vpcHeight };
       
-      // Add Internet Gateway
       if (vpc.internetGateway) {
         positions[`igw-${vpc.internetGateway.id}`] = {
           x: vpcX + vpcWidth / 2,
@@ -92,114 +90,60 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         };
       }
       
-      // Create layout with availability zones
-      const zoneWidth = (vpcWidth - 100) / 2;
-      const zoneHeight = vpcHeight - 80;
+      const subnetsPerRow = Math.ceil(Math.sqrt(vpc.subnets.length));
+      const subnetWidth = (vpcWidth - 100) / subnetsPerRow;
+      const subnetHeight = (vpcHeight - 150) / Math.ceil(vpc.subnets.length / subnetsPerRow);
       
-      // Zone 1
-      positions[`zone-1-${vpc.id}`] = {
-        x: vpcX + 50,
-        y: vpcY + 40,
-        width: zoneWidth,
-        height: zoneHeight
-      };
-      
-      // Zone 2
-      positions[`zone-2-${vpc.id}`] = {
-        x: vpcX + 50 + zoneWidth,
-        y: vpcY + 40,
-        width: zoneWidth,
-        height: zoneHeight
-      };
-      
-      // Add subnets within each zone
       vpc.subnets.forEach((subnet: any, subnetIndex: number) => {
-        // Determine if this is a public, web, app, or DB subnet
-        let subnetType = "private";
-        if (subnet.name.toLowerCase().includes("public")) {
-          subnetType = "public";
-        } else if (subnet.name.toLowerCase().includes("web")) {
-          subnetType = "web";
-        } else if (subnet.name.toLowerCase().includes("app")) {
-          subnetType = "app";
-        } else if (subnet.name.toLowerCase().includes("db")) {
-          subnetType = "db";
-        }
-        
-        // Calculate subnet position based on type
-        let subnetY = 0;
-        const subnetHeight = 140;
-        const subnetSpacing = 30;
-        
-        if (subnetType === "public") subnetY = vpcY + 80;
-        else if (subnetType === "web") subnetY = vpcY + 260;
-        else if (subnetType === "app") subnetY = vpcY + 440;
-        else if (subnetType === "db") subnetY = vpcY + 620;
-        else subnetY = vpcY + 800;
-        
-        // Alternate between zone 1 and zone 2
-        const zoneIndex = subnetIndex % 2;
-        const zoneX = zoneIndex === 0 ? positions[`zone-1-${vpc.id}`].x : positions[`zone-2-${vpc.id}`].x;
-        const zoneWidth = positions[`zone-1-${vpc.id}`].width;
-        
-        const subnetX = zoneX + 20;
-        const subnetWidth = zoneWidth - 40;
+        const subnetX = vpcX + 50 + (subnetIndex % subnetsPerRow) * subnetWidth;
+        const subnetY = vpcY + 100 + Math.floor(subnetIndex / subnetsPerRow) * subnetHeight;
         
         positions[`subnet-${subnet.id}`] = {
           x: subnetX,
           y: subnetY,
-          width: subnetWidth,
-          height: subnetHeight,
-          type: subnetType,
-          zone: zoneIndex === 0 ? "zone-1" : "zone-2"
+          width: subnetWidth - 30,
+          height: subnetHeight - 30
         };
         
-        // Add instances to subnet based on type
-        if (["web", "app"].includes(subnetType)) {
-          const instances = data.ec2Instances.filter((ec2: any) => ec2.subnetId === subnet.id);
-          const instancesPerRow = Math.ceil(Math.sqrt(instances.length));
-          const instanceWidth = 55;
-          const instanceHeight = 55;
-          const instanceSpacing = 15;
-          
-          instances.forEach((instance: any, instanceIndex: number) => {
-            const instanceX = subnetX + 40 + (instanceIndex % instancesPerRow) * (instanceWidth + instanceSpacing);
-            const instanceY = subnetY + 50 + Math.floor(instanceIndex / instancesPerRow) * (instanceHeight + instanceSpacing);
-            
-            positions[`ec2-${instance.id}`] = {
-              x: instanceX,
-              y: instanceY,
-              width: instanceWidth,
-              height: instanceHeight,
-              securityGroups: instance.securityGroups.map((sg: any) => sg.groupId),
-              type: subnetType
-            };
-          });
-        }
+        const instances = data.ec2Instances.filter((ec2: any) => ec2.subnetId === subnet.id);
+        const instancesPerRow = Math.ceil(Math.sqrt(instances.length));
+        const instanceWidth = 50;
+        const instanceHeight = 50;
+        const instanceSpacing = 35;
         
-        // Add RDS instances to DB subnets
-        if (subnetType === "db") {
-          const rdsInstances = data.rdsInstances.filter((rds: any) => 
-            rds.subnetGroup.includes(subnet.id)
-          );
-          const rdsWidth = 55;
-          const rdsHeight = 55;
-          const rdsSpacing = 80;
+        instances.forEach((instance: any, instanceIndex: number) => {
+          const instanceX = subnetX + 40 + (instanceIndex % instancesPerRow) * (instanceWidth + instanceSpacing);
+          const instanceY = subnetY + 70 + Math.floor(instanceIndex / instancesPerRow) * (instanceHeight + instanceSpacing);
           
-          rdsInstances.forEach((rds: any, rdsIndex: number) => {
-            const rdsX = subnetX + subnetWidth / 2 - rdsWidth / 2;
-            const rdsY = subnetY + 50;
-            
-            positions[`rds-${rds.id}`] = {
-              x: rdsX,
-              y: rdsY,
-              width: rdsWidth,
-              height: rdsHeight,
-              securityGroups: rds.securityGroups.map((sg: any) => sg.groupId),
-              zone: zoneIndex === 0 ? "zone-1" : "zone-2"
-            };
-          });
-        }
+          positions[`ec2-${instance.id}`] = {
+            x: instanceX,
+            y: instanceY,
+            width: instanceWidth,
+            height: instanceHeight,
+            securityGroups: instance.securityGroups.map((sg: any) => sg.groupId)
+          };
+        });
+        
+        const rdsInstances = data.rdsInstances.filter((rds: any) => 
+          rds.subnetGroup.includes(subnet.id)
+        );
+        const rdsPerRow = Math.ceil(Math.sqrt(rdsInstances.length));
+        const rdsWidth = 50;
+        const rdsHeight = 50;
+        const rdsSpacing = 35;
+        
+        rdsInstances.forEach((rds: any, rdsIndex: number) => {
+          const rdsX = subnetX + subnetWidth - 90 - (rdsIndex % rdsPerRow) * (rdsWidth + rdsSpacing);
+          const rdsY = subnetY + subnetHeight - 90 - Math.floor(rdsIndex / rdsPerRow) * (rdsHeight + rdsSpacing);
+          
+          positions[`rds-${rds.id}`] = {
+            x: rdsX,
+            y: rdsY,
+            width: rdsWidth,
+            height: rdsHeight,
+            securityGroups: rds.securityGroups.map((sg: any) => sg.groupId)
+          };
+        });
       });
     });
     
@@ -229,26 +173,12 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       pan.y * zoomLevel[0]
     );
     
-    // Draw AWS cloud container
     if (visibleResources.includes('vpc')) {
-      ctx.fillStyle = '#f0f7fa';
-      ctx.strokeStyle = '#d0e0eb';
-      ctx.lineWidth = 2;
-      
       data.vpcs.forEach((vpc: any) => {
         const pos = resourcePositions[`vpc-${vpc.id}`];
         if (!pos) return;
         
-        // Draw AWS cloud header
-        ctx.fillStyle = '#232f3e';
-        ctx.fillRect(pos.x - 30, pos.y - 150, pos.width + 60, 70);
-        
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 24px Arial';
-        ctx.fillText('AWS Cloud', pos.x + 80, pos.y - 105);
-        
-        // Draw VPC container
-        ctx.fillStyle = 'rgba(240, 247, 250, 0.6)';
+        ctx.fillStyle = 'rgba(232, 240, 254, 0.5)';
         ctx.strokeStyle = '#3b82f6';
         ctx.lineWidth = 2;
         ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
@@ -260,37 +190,9 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         
         ctx.fillStyle = '#000';
         ctx.font = 'bold 20px Arial';
-        ctx.fillText(`VPC: ${vpc.name}`, pos.x + 55, pos.y + 32);
+        ctx.fillText(`VPC: ${vpc.name}`, pos.x + 55, pos.y + 30);
         ctx.font = '16px Arial';
-        ctx.fillText(`CIDR: ${vpc.cidr}`, pos.x + 20, pos.y + 60);
-        
-        // Draw Availability Zones
-        const zonePos1 = resourcePositions[`zone-1-${vpc.id}`];
-        const zonePos2 = resourcePositions[`zone-2-${vpc.id}`];
-        
-        if (zonePos1) {
-          ctx.strokeStyle = '#8dabca';
-          ctx.setLineDash([5, 5]);
-          ctx.lineWidth = 1;
-          ctx.strokeRect(zonePos1.x, zonePos1.y, zonePos1.width, zonePos1.height);
-          ctx.setLineDash([]);
-          
-          ctx.font = 'bold 16px Arial';
-          ctx.fillStyle = '#3f6693';
-          ctx.fillText('Availability Zone 1', zonePos1.x + 20, zonePos1.y + 20);
-        }
-        
-        if (zonePos2) {
-          ctx.strokeStyle = '#8dabca';
-          ctx.setLineDash([5, 5]);
-          ctx.lineWidth = 1;
-          ctx.strokeRect(zonePos2.x, zonePos2.y, zonePos2.width, zonePos2.height);
-          ctx.setLineDash([]);
-          
-          ctx.font = 'bold 16px Arial';
-          ctx.fillStyle = '#3f6693';
-          ctx.fillText('Availability Zone 2', zonePos2.x + 20, zonePos2.y + 20);
-        }
+        ctx.fillText(`CIDR: ${vpc.cidr}`, pos.x + 20, pos.y + 65);
       });
     }
     
@@ -326,27 +228,9 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           const pos = resourcePositions[`subnet-${subnet.id}`];
           if (!pos) return;
           
-          const subnetType = pos.type || (subnet.isPublic ? 'public' : 'private');
-          
-          let fillColor = 'rgba(254, 242, 232, 0.5)'; // Default private
-          let strokeColor = '#ea580c';
-          
-          if (subnetType === 'public') {
-            fillColor = 'rgba(220, 252, 231, 0.5)';
-            strokeColor = '#16a34a';
-          } else if (subnetType === 'web') {
-            fillColor = 'rgba(219, 234, 254, 0.5)';
-            strokeColor = '#2563eb';
-          } else if (subnetType === 'app') {
-            fillColor = 'rgba(238, 242, 255, 0.5)';
-            strokeColor = '#4f46e5';
-          } else if (subnetType === 'db') {
-            fillColor = 'rgba(254, 242, 232, 0.5)';
-            strokeColor = '#ea580c';
-          }
-          
-          ctx.fillStyle = fillColor;
-          ctx.strokeStyle = strokeColor;
+          const isPublic = subnet.isPublic;
+          ctx.fillStyle = isPublic ? 'rgba(220, 252, 231, 0.5)' : 'rgba(254, 242, 232, 0.5)';
+          ctx.strokeStyle = isPublic ? '#16a34a' : '#ea580c';
           ctx.lineWidth = 1;
           ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
           ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
@@ -357,10 +241,10 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           
           ctx.fillStyle = '#000';
           ctx.font = 'bold 16px Arial';
-          const subnetName = subnetType.charAt(0).toUpperCase() + subnetType.slice(1) + ' Subnet';
-          ctx.fillText(subnetName, pos.x + 40, pos.y + 25);
+          ctx.fillText(`Subnet: ${subnet.name.substring(0, 15)}`, pos.x + 40, pos.y + 25);
           ctx.font = '14px Arial';
           ctx.fillText(`CIDR: ${subnet.cidr}`, pos.x + 15, pos.y + 50);
+          ctx.fillText(`${isPublic ? 'Public' : 'Private'}`, pos.x + 15, pos.y + 75);
         });
       });
     }
@@ -401,9 +285,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         const instanceIdText = ec2.instanceId && typeof ec2.instanceId === 'string' 
           ? ec2.instanceId.split('-').pop() 
           : (ec2.id && ec2.id.toString ? ec2.id.toString().substring(0, 6) : '');
-        
-        const typeText = pos.type === 'web' ? 'Web server' : 'App server';
-        ctx.fillText(typeText, pos.x, pos.y - 5);
+        ctx.fillText(instanceIdText, pos.x, pos.y - 5);
       });
     }
     
@@ -443,13 +325,10 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         const rdsIdText = rds.id && typeof rds.id === 'string' 
           ? rds.id.split('-').pop() 
           : (rds.id && rds.id.toString ? rds.id.toString().substring(0, 6) : '');
-        
-        const roleText = pos.zone === 'zone-1' ? 'RDS (Primary)' : 'RDS (Secondary)';
-        ctx.fillText(roleText, pos.x, pos.y - 5);
+        ctx.fillText(rdsIdText, pos.x, pos.y - 5);
       });
     }
     
-    // Draw connections between EC2 and RDS
     if (visibleResources.includes('ec2') && visibleResources.includes('rds')) {
       data.connections.forEach((connection: any) => {
         const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
@@ -511,190 +390,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         }
       });
     }
-    
-    // Draw load balancers and auto scaling groups
-    data.vpcs.forEach((vpc: any) => {
-      // Add ELB between public and web subnets
-      const webSubnets = vpc.subnets.filter((subnet: any) => 
-        resourcePositions[`subnet-${subnet.id}`]?.type === 'web'
-      );
-      
-      if (webSubnets.length > 0) {
-        const firstWebSubnet = resourcePositions[`subnet-${webSubnets[0].id}`];
-        if (firstWebSubnet) {
-          const elbX = firstWebSubnet.x + firstWebSubnet.width / 2 - 40;
-          const elbY = firstWebSubnet.y - 40;
-          
-          // Draw ELB
-          ctx.fillStyle = '#f0f9ff';
-          ctx.strokeStyle = '#7e22ce';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(elbX, elbY, 30, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          
-          // ELB symbol inside
-          ctx.beginPath();
-          ctx.moveTo(elbX - 15, elbY - 10);
-          ctx.lineTo(elbX + 15, elbY - 10);
-          ctx.moveTo(elbX - 15, elbY);
-          ctx.lineTo(elbX + 15, elbY);
-          ctx.moveTo(elbX - 15, elbY + 10);
-          ctx.lineTo(elbX + 15, elbY + 10);
-          ctx.strokeStyle = '#7e22ce';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          
-          ctx.fillStyle = '#000';
-          ctx.font = '12px Arial';
-          ctx.fillText('Elastic Load Balancing', elbX - 60, elbY + 45);
-          ctx.fillText('Web tier', elbX - 25, elbY + 60);
-        }
-      }
-      
-      // Add ELB between web and app subnets
-      const appSubnets = vpc.subnets.filter((subnet: any) => 
-        resourcePositions[`subnet-${subnet.id}`]?.type === 'app'
-      );
-      
-      if (appSubnets.length > 0) {
-        const firstAppSubnet = resourcePositions[`subnet-${appSubnets[0].id}`];
-        if (firstAppSubnet) {
-          const elbX = firstAppSubnet.x + firstAppSubnet.width / 2 - 40;
-          const elbY = firstAppSubnet.y - 40;
-          
-          // Draw ELB
-          ctx.fillStyle = '#f0f9ff';
-          ctx.strokeStyle = '#7e22ce';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(elbX, elbY, 30, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          
-          // ELB symbol inside
-          ctx.beginPath();
-          ctx.moveTo(elbX - 15, elbY - 10);
-          ctx.lineTo(elbX + 15, elbY - 10);
-          ctx.moveTo(elbX - 15, elbY);
-          ctx.lineTo(elbX + 15, elbY);
-          ctx.moveTo(elbX - 15, elbY + 10);
-          ctx.lineTo(elbX + 15, elbY + 10);
-          ctx.strokeStyle = '#7e22ce';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          
-          ctx.fillStyle = '#000';
-          ctx.font = '12px Arial';
-          ctx.fillText('Elastic Load Balancing', elbX - 60, elbY + 45);
-          ctx.fillText('App tier', elbX - 25, elbY + 60);
-        }
-      }
-      
-      // Add Auto Scaling Group label for Web tier
-      if (webSubnets.length > 0) {
-        const firstWebSubnet = resourcePositions[`subnet-${webSubnets[0].id}`];
-        if (firstWebSubnet) {
-          const asgX = firstWebSubnet.x + firstWebSubnet.width / 2 + 60;
-          const asgY = firstWebSubnet.y + firstWebSubnet.height / 2;
-          
-          // Draw ASG icon
-          ctx.fillStyle = '#fff7ed';
-          ctx.strokeStyle = '#ea580c';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(asgX, asgY, 25, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          
-          // Draw arrows in four directions
-          const arrowSize = 10;
-          ctx.beginPath();
-          // Up arrow
-          ctx.moveTo(asgX, asgY - arrowSize);
-          ctx.lineTo(asgX - arrowSize/2, asgY - arrowSize/2);
-          ctx.moveTo(asgX, asgY - arrowSize);
-          ctx.lineTo(asgX + arrowSize/2, asgY - arrowSize/2);
-          // Right arrow
-          ctx.moveTo(asgX + arrowSize, asgY);
-          ctx.lineTo(asgX + arrowSize/2, asgY - arrowSize/2);
-          ctx.moveTo(asgX + arrowSize, asgY);
-          ctx.lineTo(asgX + arrowSize/2, asgY + arrowSize/2);
-          // Down arrow
-          ctx.moveTo(asgX, asgY + arrowSize);
-          ctx.lineTo(asgX - arrowSize/2, asgY + arrowSize/2);
-          ctx.moveTo(asgX, asgY + arrowSize);
-          ctx.lineTo(asgX + arrowSize/2, asgY + arrowSize/2);
-          // Left arrow
-          ctx.moveTo(asgX - arrowSize, asgY);
-          ctx.lineTo(asgX - arrowSize/2, asgY - arrowSize/2);
-          ctx.moveTo(asgX - arrowSize, asgY);
-          ctx.lineTo(asgX - arrowSize/2, asgY + arrowSize/2);
-          
-          ctx.strokeStyle = '#ea580c';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          
-          ctx.fillStyle = '#000';
-          ctx.font = '12px Arial';
-          ctx.fillText('Auto Scaling group', asgX - 55, asgY + 45);
-          ctx.fillText('Web tier', asgX - 25, asgY + 60);
-        }
-      }
-      
-      // Add Auto Scaling Group label for App tier
-      if (appSubnets.length > 0) {
-        const firstAppSubnet = resourcePositions[`subnet-${appSubnets[0].id}`];
-        if (firstAppSubnet) {
-          const asgX = firstAppSubnet.x + firstAppSubnet.width / 2 + 60;
-          const asgY = firstAppSubnet.y + firstAppSubnet.height / 2;
-          
-          // Draw ASG icon
-          ctx.fillStyle = '#fff7ed';
-          ctx.strokeStyle = '#ea580c';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(asgX, asgY, 25, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          
-          // Draw arrows in four directions
-          const arrowSize = 10;
-          ctx.beginPath();
-          // Up arrow
-          ctx.moveTo(asgX, asgY - arrowSize);
-          ctx.lineTo(asgX - arrowSize/2, asgY - arrowSize/2);
-          ctx.moveTo(asgX, asgY - arrowSize);
-          ctx.lineTo(asgX + arrowSize/2, asgY - arrowSize/2);
-          // Right arrow
-          ctx.moveTo(asgX + arrowSize, asgY);
-          ctx.lineTo(asgX + arrowSize/2, asgY - arrowSize/2);
-          ctx.moveTo(asgX + arrowSize, asgY);
-          ctx.lineTo(asgX + arrowSize/2, asgY + arrowSize/2);
-          // Down arrow
-          ctx.moveTo(asgX, asgY + arrowSize);
-          ctx.lineTo(asgX - arrowSize/2, asgY + arrowSize/2);
-          ctx.moveTo(asgX, asgY + arrowSize);
-          ctx.lineTo(asgX + arrowSize/2, asgY + arrowSize/2);
-          // Left arrow
-          ctx.moveTo(asgX - arrowSize, asgY);
-          ctx.lineTo(asgX - arrowSize/2, asgY - arrowSize/2);
-          ctx.moveTo(asgX - arrowSize, asgY);
-          ctx.lineTo(asgX - arrowSize/2, asgY + arrowSize/2);
-          
-          ctx.strokeStyle = '#ea580c';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          
-          ctx.fillStyle = '#000';
-          ctx.font = '12px Arial';
-          ctx.fillText('Auto Scaling group', asgX - 55, asgY + 45);
-          ctx.fillText('App tier', asgX - 25, asgY + 60);
-        }
-      }
-    });
-    
   }, [data, resourcePositions, visibleResources, awsLogos, pan, zoomLevel]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -707,7 +402,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     
     for (const [key, pos] of Object.entries(resourcePositions)) {
       const [type, id] = key.split('-');
-      if (!visibleResources.includes(type) || !['vpc', 'subnet', 'ec2', 'rds', 'igw'].includes(type)) continue;
+      if (!visibleResources.includes(type)) continue;
       
       const { x: posX, y: posY, width, height } = pos as any;
       if (x >= posX && x <= posX + width && y >= posY && y <= posY + height) {
@@ -1006,16 +701,8 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           <span>Public Subnet</span>
         </div>
         <div className="flex items-center">
-          <Layers className="h-4 w-4 mr-1 text-blue-500" />
-          <span>Web Subnet</span>
-        </div>
-        <div className="flex items-center">
-          <Layers className="h-4 w-4 mr-1 text-indigo-500" />
-          <span>App Subnet</span>
-        </div>
-        <div className="flex items-center">
           <Layers className="h-4 w-4 mr-1 text-orange-500" />
-          <span>DB Subnet</span>
+          <span>Private Subnet</span>
         </div>
         <div className="flex items-center">
           <img src={ec2Logo} alt="EC2" className="h-4 w-4 mr-1" />
