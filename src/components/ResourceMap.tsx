@@ -1,4 +1,3 @@
-
 import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Network, Shield, Server, Database, Globe, AlertTriangle, Layers } from "lucide-react";
@@ -63,31 +62,29 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     const positions: any = {};
     
     const vpcsCount = data.vpcs.length;
-    // Increase spacing between VPCs
     const vpcsPerRow = Math.ceil(Math.sqrt(vpcsCount));
-    const vpcWidth = 900;  // Increased from 800
-    const vpcHeight = 700; // Increased from 600
-    const vpcSpacing = 200; // Increased from 100
+    const vpcWidth = 900;
+    const vpcHeight = 700;
+    const vpcSpacing = 200;
     
     data.vpcs.forEach((vpc: any, vpcIndex: number) => {
-      const vpcX = (vpcIndex % vpcsPerRow) * (vpcWidth + vpcSpacing) + 150; // Increased padding
-      const vpcY = Math.floor(vpcIndex / vpcsPerRow) * (vpcHeight + vpcSpacing) + 150; // Increased padding
+      const vpcX = (vpcIndex % vpcsPerRow) * (vpcWidth + vpcSpacing) + 150;
+      const vpcY = Math.floor(vpcIndex / vpcsPerRow) * (vpcHeight + vpcSpacing) + 150;
       
       positions[`vpc-${vpc.id}`] = { x: vpcX, y: vpcY, width: vpcWidth, height: vpcHeight };
       
       if (vpc.internetGateway) {
         positions[`igw-${vpc.internetGateway.id}`] = {
           x: vpcX + vpcWidth / 2,
-          y: vpcY - 80, // Increased distance from VPC
+          y: vpcY - 80,
           width: 50,
           height: 50
         };
       }
       
       const subnetsPerRow = Math.ceil(Math.sqrt(vpc.subnets.length));
-      // Add more space for subnets
-      const subnetWidth = (vpcWidth - 80) / subnetsPerRow; // More padding
-      const subnetHeight = (vpcHeight - 120) / Math.ceil(vpc.subnets.length / subnetsPerRow); // More padding
+      const subnetWidth = (vpcWidth - 80) / subnetsPerRow;
+      const subnetHeight = (vpcHeight - 120) / Math.ceil(vpc.subnets.length / subnetsPerRow);
       
       vpc.subnets.forEach((subnet: any, subnetIndex: number) => {
         const subnetX = vpcX + 40 + (subnetIndex % subnetsPerRow) * subnetWidth;
@@ -96,16 +93,15 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         positions[`subnet-${subnet.id}`] = {
           x: subnetX,
           y: subnetY,
-          width: subnetWidth - 20, // Increase space between subnets
-          height: subnetHeight - 20  // Increase space between subnets
+          width: subnetWidth - 20,
+          height: subnetHeight - 20
         };
         
         const instances = data.ec2Instances.filter((ec2: any) => ec2.subnetId === subnet.id);
-        // Better distribute EC2 instances
         const instancesPerRow = Math.ceil(Math.sqrt(instances.length));
-        const instanceWidth = 40; // Larger instances
-        const instanceHeight = 40; // Larger instances
-        const instanceSpacing = 25; // More space between instances
+        const instanceWidth = 40;
+        const instanceHeight = 40;
+        const instanceSpacing = 25;
         
         instances.forEach((instance: any, instanceIndex: number) => {
           const instanceX = subnetX + 30 + (instanceIndex % instancesPerRow) * (instanceWidth + instanceSpacing);
@@ -123,11 +119,10 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         const rdsInstances = data.rdsInstances.filter((rds: any) => 
           rds.subnetGroup.includes(subnet.id)
         );
-        // Better distribute RDS instances
         const rdsPerRow = Math.ceil(Math.sqrt(rdsInstances.length));
-        const rdsWidth = 40; // Larger RDS instances
-        const rdsHeight = 40; // Larger RDS instances
-        const rdsSpacing = 25; // More space between RDS instances
+        const rdsWidth = 40;
+        const rdsHeight = 40;
+        const rdsSpacing = 25;
         
         rdsInstances.forEach((rds: any, rdsIndex: number) => {
           const rdsX = subnetX + subnetWidth - 80 - (rdsIndex % rdsPerRow) * (rdsWidth + rdsSpacing);
@@ -172,9 +167,9 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         }
         
         ctx.fillStyle = '#000';
-        ctx.font = 'bold 18px Arial'; // Increased font size
+        ctx.font = 'bold 18px Arial';
         ctx.fillText(`VPC: ${vpc.name}`, pos.x + 50, pos.y + 25);
-        ctx.font = '14px Arial'; // Increased font size
+        ctx.font = '14px Arial';
         ctx.fillText(`CIDR: ${vpc.cidr}`, pos.x + 15, pos.y + 55);
       });
     }
@@ -190,7 +185,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.strokeStyle = '#0284c7';
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.arc(pos.x, pos.y, 25, 0, Math.PI * 2); // Larger circle
+          ctx.arc(pos.x, pos.y, 25, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           
@@ -199,7 +194,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           }
           
           ctx.fillStyle = '#000';
-          ctx.font = '12px Arial'; // Slightly larger font
+          ctx.font = '12px Arial';
           ctx.fillText('IGW', pos.x - 12, pos.y + 40);
         }
       });
@@ -223,9 +218,9 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           }
           
           ctx.fillStyle = '#000';
-          ctx.font = 'bold 14px Arial'; // Increased font size
+          ctx.font = 'bold 14px Arial';
           ctx.fillText(`Subnet: ${subnet.name.substring(0, 15)}`, pos.x + 30, pos.y + 20);
-          ctx.font = '12px Arial'; // Increased font size
+          ctx.font = '12px Arial';
           ctx.fillText(`CIDR: ${subnet.cidr}`, pos.x + 10, pos.y + 40);
           ctx.fillText(`${isPublic ? 'Public' : 'Private'}`, pos.x + 10, pos.y + 60);
         });
@@ -263,10 +258,12 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
         }
         
-        // Add identifier above the EC2 instance
         ctx.fillStyle = '#000';
         ctx.font = '10px Arial';
-        ctx.fillText(ec2.instanceId.split('-').pop(), pos.x, pos.y - 5);
+        const instanceIdText = ec2.instanceId && typeof ec2.instanceId === 'string' 
+          ? ec2.instanceId.split('-').pop() 
+          : ec2.id.toString().substring(0, 6);
+        ctx.fillText(instanceIdText, pos.x, pos.y - 5);
       });
     }
     
@@ -301,10 +298,12 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
         }
         
-        // Add identifier above the RDS instance
         ctx.fillStyle = '#000';
         ctx.font = '10px Arial';
-        ctx.fillText(rds.id.split('-').pop(), pos.x, pos.y - 5);
+        const rdsIdText = rds.id && typeof rds.id === 'string' 
+          ? rds.id.split('-').pop() 
+          : rds.id.toString().substring(0, 6);
+        ctx.fillText(rdsIdText, pos.x, pos.y - 5);
       });
     }
     
@@ -359,12 +358,12 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.strokeStyle = '#ef4444';
           ctx.lineWidth = 1;
           ctx.beginPath();
-          ctx.arc(midX, midY, 12, 0, Math.PI * 2); // Larger circle
+          ctx.arc(midX, midY, 12, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           
           ctx.fillStyle = '#ef4444';
-          ctx.font = 'bold 14px Arial'; // Larger font
+          ctx.font = 'bold 14px Arial';
           ctx.fillText('!', midX - 3, midY + 5);
         }
       });
@@ -615,4 +614,3 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     </div>
   );
 };
-
