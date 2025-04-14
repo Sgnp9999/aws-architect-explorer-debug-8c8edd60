@@ -1,6 +1,10 @@
+
 import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Network, Shield, Server, Database, Globe, AlertTriangle, Layers } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 import ec2Logo from "../assets/aws-logos/ec2.svg";
 import rdsLogo from "../assets/aws-logos/rds.svg";
@@ -22,6 +26,10 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   const [hoveredConnection, setHoveredConnection] = useState<any>(null);
   const [scale, setScale] = useState(1);
   const [awsLogos, setAwsLogos] = useState<Record<string, HTMLImageElement>>({});
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [startPan, setStartPan] = useState({ x: 0, y: 0 });
+  const [zoomLevel, setZoomLevel] = useState([1]);
 
   useEffect(() => {
     const logoSources = {
@@ -51,8 +59,8 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     if (!containerRef.current) return { x: 0, y: 0 };
     const rect = containerRef.current.getBoundingClientRect();
     return {
-      x: x * scale + rect.left,
-      y: y * scale + rect.top
+      x: (x * scale + pan.x) * zoomLevel[0] + rect.left,
+      y: (y * scale + pan.y) * zoomLevel[0] + rect.top
     };
   };
 
@@ -63,9 +71,9 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     
     const vpcsCount = data.vpcs.length;
     const vpcsPerRow = Math.ceil(Math.sqrt(vpcsCount));
-    const vpcWidth = 900;
-    const vpcHeight = 700;
-    const vpcSpacing = 200;
+    const vpcWidth = 1000;
+    const vpcHeight = 800;
+    const vpcSpacing = 300;
     
     data.vpcs.forEach((vpc: any, vpcIndex: number) => {
       const vpcX = (vpcIndex % vpcsPerRow) * (vpcWidth + vpcSpacing) + 150;
@@ -76,36 +84,36 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       if (vpc.internetGateway) {
         positions[`igw-${vpc.internetGateway.id}`] = {
           x: vpcX + vpcWidth / 2,
-          y: vpcY - 80,
-          width: 50,
-          height: 50
+          y: vpcY - 100,
+          width: 60,
+          height: 60
         };
       }
       
       const subnetsPerRow = Math.ceil(Math.sqrt(vpc.subnets.length));
-      const subnetWidth = (vpcWidth - 80) / subnetsPerRow;
-      const subnetHeight = (vpcHeight - 120) / Math.ceil(vpc.subnets.length / subnetsPerRow);
+      const subnetWidth = (vpcWidth - 100) / subnetsPerRow;
+      const subnetHeight = (vpcHeight - 150) / Math.ceil(vpc.subnets.length / subnetsPerRow);
       
       vpc.subnets.forEach((subnet: any, subnetIndex: number) => {
-        const subnetX = vpcX + 40 + (subnetIndex % subnetsPerRow) * subnetWidth;
-        const subnetY = vpcY + 80 + Math.floor(subnetIndex / subnetsPerRow) * subnetHeight;
+        const subnetX = vpcX + 50 + (subnetIndex % subnetsPerRow) * subnetWidth;
+        const subnetY = vpcY + 100 + Math.floor(subnetIndex / subnetsPerRow) * subnetHeight;
         
         positions[`subnet-${subnet.id}`] = {
           x: subnetX,
           y: subnetY,
-          width: subnetWidth - 20,
-          height: subnetHeight - 20
+          width: subnetWidth - 30,
+          height: subnetHeight - 30
         };
         
         const instances = data.ec2Instances.filter((ec2: any) => ec2.subnetId === subnet.id);
         const instancesPerRow = Math.ceil(Math.sqrt(instances.length));
-        const instanceWidth = 40;
-        const instanceHeight = 40;
-        const instanceSpacing = 25;
+        const instanceWidth = 50;
+        const instanceHeight = 50;
+        const instanceSpacing = 35;
         
         instances.forEach((instance: any, instanceIndex: number) => {
-          const instanceX = subnetX + 30 + (instanceIndex % instancesPerRow) * (instanceWidth + instanceSpacing);
-          const instanceY = subnetY + 60 + Math.floor(instanceIndex / instancesPerRow) * (instanceHeight + instanceSpacing);
+          const instanceX = subnetX + 40 + (instanceIndex % instancesPerRow) * (instanceWidth + instanceSpacing);
+          const instanceY = subnetY + 70 + Math.floor(instanceIndex / instancesPerRow) * (instanceHeight + instanceSpacing);
           
           positions[`ec2-${instance.id}`] = {
             x: instanceX,
@@ -120,13 +128,13 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           rds.subnetGroup.includes(subnet.id)
         );
         const rdsPerRow = Math.ceil(Math.sqrt(rdsInstances.length));
-        const rdsWidth = 40;
-        const rdsHeight = 40;
-        const rdsSpacing = 25;
+        const rdsWidth = 50;
+        const rdsHeight = 50;
+        const rdsSpacing = 35;
         
         rdsInstances.forEach((rds: any, rdsIndex: number) => {
-          const rdsX = subnetX + subnetWidth - 80 - (rdsIndex % rdsPerRow) * (rdsWidth + rdsSpacing);
-          const rdsY = subnetY + subnetHeight - 80 - Math.floor(rdsIndex / rdsPerRow) * (rdsHeight + rdsSpacing);
+          const rdsX = subnetX + subnetWidth - 90 - (rdsIndex % rdsPerRow) * (rdsWidth + rdsSpacing);
+          const rdsY = subnetY + subnetHeight - 90 - Math.floor(rdsIndex / rdsPerRow) * (rdsHeight + rdsSpacing);
           
           positions[`rds-${rds.id}`] = {
             x: rdsX,
@@ -149,7 +157,21 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
+    // Clear the entire canvas with the current transformation
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    
+    // Apply pan and zoom transformations
+    ctx.setTransform(
+      zoomLevel[0],
+      0,
+      0,
+      zoomLevel[0],
+      pan.x * zoomLevel[0],
+      pan.y * zoomLevel[0]
+    );
     
     if (visibleResources.includes('vpc')) {
       data.vpcs.forEach((vpc: any) => {
@@ -163,14 +185,14 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
         
         if (awsLogos.vpc) {
-          ctx.drawImage(awsLogos.vpc, pos.x + 10, pos.y + 10, 28, 28);
+          ctx.drawImage(awsLogos.vpc, pos.x + 10, pos.y + 10, 35, 35);
         }
         
         ctx.fillStyle = '#000';
-        ctx.font = 'bold 18px Arial';
-        ctx.fillText(`VPC: ${vpc.name}`, pos.x + 50, pos.y + 25);
-        ctx.font = '14px Arial';
-        ctx.fillText(`CIDR: ${vpc.cidr}`, pos.x + 15, pos.y + 55);
+        ctx.font = 'bold 20px Arial';
+        ctx.fillText(`VPC: ${vpc.name}`, pos.x + 55, pos.y + 30);
+        ctx.font = '16px Arial';
+        ctx.fillText(`CIDR: ${vpc.cidr}`, pos.x + 20, pos.y + 65);
       });
     }
     
@@ -185,17 +207,17 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.strokeStyle = '#0284c7';
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.arc(pos.x, pos.y, 25, 0, Math.PI * 2);
+          ctx.arc(pos.x, pos.y, 30, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           
           if (awsLogos.igw) {
-            ctx.drawImage(awsLogos.igw, pos.x - 18, pos.y - 18, 36, 36);
+            ctx.drawImage(awsLogos.igw, pos.x - 22, pos.y - 22, 44, 44);
           }
           
           ctx.fillStyle = '#000';
-          ctx.font = '12px Arial';
-          ctx.fillText('IGW', pos.x - 12, pos.y + 40);
+          ctx.font = '14px Arial';
+          ctx.fillText('IGW', pos.x - 14, pos.y + 45);
         }
       });
     }
@@ -214,15 +236,15 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
           
           if (awsLogos.subnet) {
-            ctx.drawImage(awsLogos.subnet, pos.x + 8, pos.y + 8, 18, 18);
+            ctx.drawImage(awsLogos.subnet, pos.x + 8, pos.y + 8, 24, 24);
           }
           
           ctx.fillStyle = '#000';
-          ctx.font = 'bold 14px Arial';
-          ctx.fillText(`Subnet: ${subnet.name.substring(0, 15)}`, pos.x + 30, pos.y + 20);
-          ctx.font = '12px Arial';
-          ctx.fillText(`CIDR: ${subnet.cidr}`, pos.x + 10, pos.y + 40);
-          ctx.fillText(`${isPublic ? 'Public' : 'Private'}`, pos.x + 10, pos.y + 60);
+          ctx.font = 'bold 16px Arial';
+          ctx.fillText(`Subnet: ${subnet.name.substring(0, 15)}`, pos.x + 40, pos.y + 25);
+          ctx.font = '14px Arial';
+          ctx.fillText(`CIDR: ${subnet.cidr}`, pos.x + 15, pos.y + 50);
+          ctx.fillText(`${isPublic ? 'Public' : 'Private'}`, pos.x + 15, pos.y + 75);
         });
       });
     }
@@ -244,7 +266,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.setLineDash([]);
           
           if (awsLogos.sg) {
-            ctx.drawImage(awsLogos.sg, pos.x - 10, pos.y - 10, 15, 15);
+            ctx.drawImage(awsLogos.sg, pos.x - 12, pos.y - 12, 18, 18);
           }
         }
         
@@ -259,10 +281,10 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         }
         
         ctx.fillStyle = '#000';
-        ctx.font = '10px Arial';
+        ctx.font = '12px Arial';
         const instanceIdText = ec2.instanceId && typeof ec2.instanceId === 'string' 
           ? ec2.instanceId.split('-').pop() 
-          : ec2.id.toString().substring(0, 6);
+          : (ec2.id && ec2.id.toString ? ec2.id.toString().substring(0, 6) : '');
         ctx.fillText(instanceIdText, pos.x, pos.y - 5);
       });
     }
@@ -284,7 +306,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           ctx.setLineDash([]);
           
           if (awsLogos.sg) {
-            ctx.drawImage(awsLogos.sg, pos.x - 10, pos.y - 10, 15, 15);
+            ctx.drawImage(awsLogos.sg, pos.x - 12, pos.y - 12, 18, 18);
           }
         }
         
@@ -299,10 +321,10 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         }
         
         ctx.fillStyle = '#000';
-        ctx.font = '10px Arial';
+        ctx.font = '12px Arial';
         const rdsIdText = rds.id && typeof rds.id === 'string' 
           ? rds.id.split('-').pop() 
-          : rds.id.toString().substring(0, 6);
+          : (rds.id && rds.id.toString ? rds.id.toString().substring(0, 6) : '');
         ctx.fillText(rdsIdText, pos.x, pos.y - 5);
       });
     }
@@ -368,15 +390,15 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         }
       });
     }
-  }, [data, resourcePositions, visibleResources, awsLogos]);
+  }, [data, resourcePositions, visibleResources, awsLogos, pan, zoomLevel]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current || !data) return;
+    if (!canvasRef.current || !data || isDragging) return;
     
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / scale;
-    const y = (e.clientY - rect.top) / scale;
+    const x = (e.clientX - rect.left - pan.x * zoomLevel[0]) / zoomLevel[0];
+    const y = (e.clientY - rect.top - pan.y * zoomLevel[0]) / zoomLevel[0];
     
     for (const [key, pos] of Object.entries(resourcePositions)) {
       const [type, id] = key.split('-');
@@ -477,9 +499,29 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / scale;
-    const y = (e.clientY - rect.top) / scale;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const x = (mouseX - pan.x * zoomLevel[0]) / zoomLevel[0];
+    const y = (mouseY - pan.y * zoomLevel[0]) / zoomLevel[0];
     
+    // Handle dragging
+    if (isDragging) {
+      const dx = (mouseX - startPan.x) / zoomLevel[0];
+      const dy = (mouseY - startPan.y) / zoomLevel[0];
+      
+      setPan({
+        x: pan.x + dx,
+        y: pan.y + dy
+      });
+      
+      setStartPan({
+        x: mouseX,
+        y: mouseY
+      });
+      return;
+    }
+    
+    // Connection hovering
     let foundConnection = false;
     for (const connection of data.connections) {
       if (connection.status !== 'blocked') continue;
@@ -518,6 +560,44 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     }
   };
 
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    setIsDragging(true);
+    setStartPan({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+    
+    canvas.style.cursor = 'grabbing';
+  };
+
+  const handleMouseUp = () => {
+    if (!canvasRef.current) return;
+    
+    setIsDragging(false);
+    canvasRef.current.style.cursor = 'grab';
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+    if (canvasRef.current) {
+      canvasRef.current.style.cursor = 'grab';
+    }
+  };
+
+  const handleZoomChange = (newZoom: number[]) => {
+    setZoomLevel(newZoom);
+  };
+
+  const handleResetView = () => {
+    setPan({ x: 0, y: 0 });
+    setZoomLevel([1]);
+  };
+  
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
     
@@ -548,38 +628,68 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   }, []);
 
   return (
-    <div ref={containerRef} className="w-full h-full relative">
-      <canvas
-        ref={canvasRef}
-        onClick={handleCanvasClick}
-        onMouseMove={handleMouseMove}
-        className="cursor-pointer"
-      />
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-800 border-b dark:border-gray-700">
+        <div className="flex items-center space-x-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleResetView}
+            className="text-xs"
+          >
+            Reset View
+          </Button>
+        </div>
+        <div className="flex items-center w-48 mr-4">
+          <span className="text-xs mr-2">Zoom:</span>
+          <Slider
+            value={zoomLevel}
+            onValueChange={handleZoomChange}
+            min={0.5}
+            max={2}
+            step={0.1}
+            className="w-32"
+          />
+          <span className="text-xs ml-2">{Math.round(zoomLevel[0] * 100)}%</span>
+        </div>
+      </div>
       
-      {hoveredConnection && (
-        <TooltipProvider>
-          <Tooltip open={true}>
-            <TooltipTrigger asChild>
-              <div 
-                className="absolute w-1 h-1 bg-transparent" 
-                style={{ 
-                  left: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).x, 
-                  top: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).y 
-                }}
-              />
-            </TooltipTrigger>
-            <TooltipContent className="bg-red-50 text-red-700 border border-red-200 p-2 max-w-xs">
-              <div className="flex items-start space-x-2">
-                <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-medium">Connection Blocked</div>
-                  <div className="text-sm mt-1">{hoveredConnection.errorMessage}</div>
+      <div ref={containerRef} className="w-full flex-1 relative overflow-hidden">
+        <canvas
+          ref={canvasRef}
+          onClick={handleCanvasClick}
+          onMouseMove={handleMouseMove}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          className="cursor-grab"
+        />
+        
+        {hoveredConnection && (
+          <TooltipProvider>
+            <Tooltip open={true}>
+              <TooltipTrigger asChild>
+                <div 
+                  className="absolute w-1 h-1 bg-transparent" 
+                  style={{ 
+                    left: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).x, 
+                    top: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).y 
+                  }}
+                />
+              </TooltipTrigger>
+              <TooltipContent className="bg-red-50 text-red-700 border border-red-200 p-2 max-w-xs">
+                <div className="flex items-start space-x-2">
+                  <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-medium">Connection Blocked</div>
+                    <div className="text-sm mt-1">{hoveredConnection.errorMessage}</div>
+                  </div>
                 </div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </div>
       
       <div className="absolute bottom-4 right-4 flex flex-wrap gap-2 bg-white/80 dark:bg-gray-800/80 rounded p-2 text-xs shadow-md">
         <div className="flex items-center">
