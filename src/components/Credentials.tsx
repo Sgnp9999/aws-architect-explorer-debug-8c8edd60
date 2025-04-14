@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shield, Key, MapPin, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 interface CredentialsProps {
   onSubmit: (credentials: {
@@ -141,6 +142,38 @@ export const Credentials = ({ onSubmit }: CredentialsProps) => {
                 </Select>
               </div>
             </div>
+            
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="permissions">
+                <AccordionTrigger className="text-sm text-blue-600">
+                  Required AWS Permissions
+                </AccordionTrigger>
+                <AccordionContent className="text-xs space-y-2">
+                  <p>This application requires read-only access to the following AWS services:</p>
+                  <ul className="list-disc pl-5 space-y-1 mt-2">
+                    <li>EC2 (DescribeInstances, DescribeVpcs, DescribeSubnets, etc.)</li>
+                    <li>RDS (DescribeDBInstances)</li>
+                    <li>Security Groups (DescribeSecurityGroups)</li>
+                  </ul>
+                  <p className="mt-2">We recommend creating an IAM user with the <strong>ReadOnlyAccess</strong> policy for security.</p>
+                </AccordionContent>
+              </AccordionItem>
+              
+              <AccordionItem value="security">
+                <AccordionTrigger className="text-sm text-blue-600">
+                  Security Information
+                </AccordionTrigger>
+                <AccordionContent className="text-xs space-y-2">
+                  <p>Your AWS credentials are:</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>Only stored in memory during your session</li>
+                    <li>Never sent to any servers or stored permanently</li>
+                    <li>Used only to make API calls to AWS services</li>
+                    <li>Cleared when you close this application</li>
+                  </ul>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </CardContent>
           
           <CardFooter>

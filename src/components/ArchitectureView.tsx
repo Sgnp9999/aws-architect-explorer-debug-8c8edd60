@@ -15,6 +15,8 @@ import { Loader2, RefreshCw, Search, Download, LogOut, Moon, Sun, Filter, Networ
 import { ResourcePanel } from "@/components/ResourcePanel";
 import { mockAwsData } from "@/lib/mock-aws-data";
 import { ResourceMap } from "@/components/ResourceMap";
+import { AwsService } from "@/lib/aws-service";
+import { useToast } from "@/hooks/use-toast";
 
 interface ArchitectureViewProps {
   credentials: {
@@ -33,32 +35,76 @@ export const ArchitectureView = ({ credentials }: ArchitectureViewProps) => {
   const [visibleResources, setVisibleResources] = useState<string[]>([
     "vpc", "subnet", "igw", "ec2", "rds", "sg"
   ]);
+  const [error, setError] = useState<string | null>(null);
+  const awsService = useRef<AwsService | null>(null);
+  const { toast } = useToast();
   
   useEffect(() => {
     const fetchAwsData = async () => {
       setLoading(true);
+      setError(null);
+      
       try {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        setAwsData(mockAwsData);
+        awsService.current = new AwsService(credentials);
+        
+        const data = await awsService.current.fetchAwsArchitecture();
+        setAwsData(data);
+        
+        toast({
+          title: "AWS Architecture Loaded",
+          description: `Successfully loaded ${data.vpcs.length} VPCs, ${data.ec2Instances.length} EC2 instances, and ${data.rdsInstances.length} RDS instances.`,
+          variant: "default",
+        });
       } catch (error) {
         console.error("Error fetching AWS data:", error);
+        setError("Failed to fetch AWS data. Please check your credentials and try again.");
+        
+        toast({
+          title: "Error Loading AWS Architecture",
+          description: "Failed to fetch data. Please check your credentials and try again.",
+          variant: "destructive",
+        });
+        
+        setAwsData(mockAwsData);
       } finally {
         setLoading(false);
       }
     };
     
     fetchAwsData();
-  }, [credentials]);
+  }, [credentials, toast]);
   
   const handleResourceClick = (resource: any) => {
     setSelectedResource(resource);
   };
   
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
+    if (!awsService.current) return;
+    
     setLoading(true);
-    setTimeout(() => {
+    setError(null);
+    
+    try {
+      const data = await awsService.current.fetchAwsArchitecture();
+      setAwsData(data);
+      
+      toast({
+        title: "AWS Architecture Refreshed",
+        description: "Successfully refreshed your AWS architecture data.",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error("Error refreshing AWS data:", error);
+      setError("Failed to refresh AWS data.");
+      
+      toast({
+        title: "Error Refreshing Data",
+        description: "Failed to refresh AWS architecture data.",
+        variant: "destructive",
+      });
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
   
   const toggleResourceVisibility = (resourceType: string) => {
@@ -70,7 +116,23 @@ export const ArchitectureView = ({ credentials }: ArchitectureViewProps) => {
   };
   
   const handleDownload = () => {
-    alert("Architecture diagram would be downloaded here in a real application");
+    if (!awsData) return;
+    
+    const dataStr = JSON.stringify(awsData, null, 2);
+    const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
+    
+    const downloadLink = document.createElement('a');
+    downloadLink.setAttribute('href', dataUri);
+    downloadLink.setAttribute('download', `aws-architecture-${credentials.region}.json`);
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    
+    toast({
+      title: "Architecture Data Downloaded",
+      description: "AWS architecture data has been downloaded as JSON.",
+      variant: "default",
+    });
   };
   
   const handleLogout = () => {
@@ -90,7 +152,19 @@ export const ArchitectureView = ({ credentials }: ArchitectureViewProps) => {
       ...resources,
       vpcs: resources.vpcs.filter((vpc: any) => 
         vpc.id.toLowerCase().includes(query) || 
-        vpc.name.toLowerCase().includes(query)
+        (vpc.name && vpc.name.toLowerCase().includes(query))
+      ),
+      ec2Instances: resources.ec2Instances.filter((ec2: any) =>
+        ec2.id.toLowerCase().includes(query) ||
+        (ec2.name && ec2.name.toLowerCase().includes(query))
+      ),
+      rdsInstances: resources.rdsInstances.filter((rds: any) =>
+        rds.id.toLowerCase().includes(query) ||
+        (rds.name && rds.name.toLowerCase().includes(query))
+      ),
+      securityGroups: resources.securityGroups.filter((sg: any) =>
+        sg.id.toLowerCase().includes(query) ||
+        (sg.name && sg.name.toLowerCase().includes(query))
       ),
     };
   };
@@ -121,6 +195,22 @@ export const ArchitectureView = ({ credentials }: ArchitectureViewProps) => {
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                   <span className="ml-2 text-lg">Loading AWS architecture...</span>
+                </div>
+              ) : error ? (
+                <div className="flex flex-col items-center justify-center h-full">
+                  <div className="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 p-6 rounded-lg max-w-lg text-center">
+                    <Info className="h-12 w-12 mx-auto mb-4 text-red-500" />
+                    <h3 className="text-lg font-semibold mb-2">Error Loading AWS Architecture</h3>
+                    <p>{error}</p>
+                    <Button
+                      variant="outline"
+                      className="mt-4"
+                      onClick={handleRefresh}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Try Again
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex h-full space-x-4">
