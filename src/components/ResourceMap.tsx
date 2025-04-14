@@ -1,6 +1,6 @@
-
 import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Network, Shield, Server, Database, Globe, AlertTriangle, Layers } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   const containerRef = useRef<HTMLDivElement>(null);
   const [resourcePositions, setResourcePositions] = useState<any>({});
   const [hoveredConnection, setHoveredConnection] = useState<any>(null);
+  const [hoveredResource, setHoveredResource] = useState<any>(null);
   const [scale, setScale] = useState(1);
   const [awsLogos, setAwsLogos] = useState<Record<string, HTMLImageElement>>({});
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -157,13 +158,11 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Clear the entire canvas with the current transformation
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
     
-    // Apply pan and zoom transformations
     ctx.setTransform(
       zoomLevel[0],
       0,
@@ -504,7 +503,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     const x = (mouseX - pan.x * zoomLevel[0]) / zoomLevel[0];
     const y = (mouseY - pan.y * zoomLevel[0]) / zoomLevel[0];
     
-    // Handle dragging
     if (isDragging) {
       const dx = (mouseX - startPan.x) / zoomLevel[0];
       const dy = (mouseY - startPan.y) / zoomLevel[0];
@@ -521,7 +519,97 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       return;
     }
     
-    // Connection hovering
+    let foundResource = false;
+    for (const [key, pos] of Object.entries(resourcePositions)) {
+      const [type, id] = key.split('-');
+      if (!visibleResources.includes(type)) continue;
+      
+      const { x: posX, y: posY, width, height } = pos as any;
+      if (x >= posX && x <= posX + width && y >= posY && y <= posY + height) {
+        let resource;
+        switch (type) {
+          case 'vpc':
+            resource = data.vpcs.find((vpc: any) => vpc.id === id);
+            if (resource) {
+              setHoveredResource({
+                ...resource,
+                type,
+                x: posX + width/2,
+                y: posY,
+                width,
+                height
+              });
+              foundResource = true;
+            }
+            break;
+          case 'subnet':
+            resource = data.vpcs.flatMap((vpc: any) => vpc.subnets).find((subnet: any) => subnet.id === id);
+            if (resource) {
+              setHoveredResource({
+                ...resource,
+                type,
+                x: posX + width/2,
+                y: posY,
+                width,
+                height
+              });
+              foundResource = true;
+            }
+            break;
+          case 'ec2':
+            resource = data.ec2Instances.find((ec2: any) => ec2.id === id);
+            if (resource) {
+              setHoveredResource({
+                ...resource,
+                type,
+                x: posX + width/2,
+                y: posY - 10,
+                width,
+                height
+              });
+              foundResource = true;
+            }
+            break;
+          case 'rds':
+            resource = data.rdsInstances.find((rds: any) => rds.id === id);
+            if (resource) {
+              setHoveredResource({
+                ...resource,
+                type,
+                x: posX + width/2,
+                y: posY - 10,
+                width,
+                height
+              });
+              foundResource = true;
+            }
+            break;
+          case 'igw':
+            resource = data.vpcs
+              .filter((vpc: any) => vpc.internetGateway)
+              .map((vpc: any) => vpc.internetGateway)
+              .find((igw: any) => igw.id === id);
+            if (resource) {
+              setHoveredResource({
+                ...resource,
+                type,
+                x: posX,
+                y: posY - 10,
+                width,
+                height
+              });
+              foundResource = true;
+            }
+            break;
+        }
+        if (foundResource) break;
+      }
+    }
+    
+    if (!foundResource && hoveredResource) {
+      setHoveredResource(null);
+    }
+    
     let foundConnection = false;
     for (const connection of data.connections) {
       if (connection.status !== 'blocked') continue;
@@ -583,10 +671,12 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   };
 
   const handleMouseLeave = () => {
+    if (!canvasRef.current) return;
+    
     setIsDragging(false);
-    if (canvasRef.current) {
-      canvasRef.current.style.cursor = 'grab';
-    }
+    canvasRef.current.style.cursor = 'grab';
+    setHoveredResource(null);
+    setHoveredConnection(null);
   };
 
   const handleZoomChange = (newZoom: number[]) => {
@@ -627,6 +717,76 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     };
   }, []);
 
+  const getResourceSummary = (resource: any) => {
+    if (!resource) return null;
+    
+    switch (resource.type) {
+      case 'vpc':
+        return (
+          <div className="space-y-2">
+            <div className="font-medium">{resource.name}</div>
+            <div className="text-sm">ID: {resource.id}</div>
+            <div className="text-sm">CIDR: {resource.cidr}</div>
+            <div className="text-sm">Subnets: {resource.subnetCount}</div>
+            <div className="text-sm">Instances: {resource.instanceCount}</div>
+            <div className="text-sm">State: {resource.state}</div>
+          </div>
+        );
+      case 'subnet':
+        return (
+          <div className="space-y-2">
+            <div className="font-medium">{resource.name}</div>
+            <div className="text-sm">ID: {resource.id}</div>
+            <div className="text-sm">CIDR: {resource.cidr}</div>
+            <div className="text-sm">AZ: {resource.az}</div>
+            <div className="text-sm">Type: {resource.isPublic ? 'Public' : 'Private'}</div>
+            <div className="text-sm">EC2: {resource.ec2Count} instances</div>
+            <div className="text-sm">RDS: {resource.rdsCount} instances</div>
+          </div>
+        );
+      case 'ec2':
+        return (
+          <div className="space-y-2">
+            <div className="font-medium">{resource.name || resource.id}</div>
+            <div className="text-sm">ID: {resource.id}</div>
+            <div className="text-sm">Type: {resource.instanceType}</div>
+            <div className="text-sm">State: {resource.state}</div>
+            <div className="text-sm">IP: {resource.privateIp}</div>
+            {resource.publicIp && <div className="text-sm">Public IP: {resource.publicIp}</div>}
+            <div className="text-sm">Security Groups: {resource.securityGroups?.length || 0}</div>
+          </div>
+        );
+      case 'rds':
+        return (
+          <div className="space-y-2">
+            <div className="font-medium">{resource.id}</div>
+            {resource.dbName && <div className="text-sm">DB Name: {resource.dbName}</div>}
+            <div className="text-sm">Engine: {resource.engine} {resource.engineVersion}</div>
+            <div className="text-sm">Status: {resource.status}</div>
+            <div className="text-sm">Endpoint: {resource.endpoint}</div>
+            <div className="text-sm">Port: {resource.port}</div>
+            <div className="text-sm">Security Groups: {resource.securityGroups?.length || 0}</div>
+          </div>
+        );
+      case 'igw':
+        return (
+          <div className="space-y-2">
+            <div className="font-medium">Internet Gateway</div>
+            <div className="text-sm">ID: {resource.id}</div>
+            <div className="text-sm">VPC: {resource.vpcName || resource.vpcId}</div>
+            <div className="text-sm">State: {resource.state}</div>
+          </div>
+        );
+      default:
+        return (
+          <div className="space-y-2">
+            <div className="font-medium">Resource {resource.id}</div>
+            <div className="text-sm">Type: {resource.type}</div>
+          </div>
+        );
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-800 border-b dark:border-gray-700">
@@ -664,6 +824,26 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           onMouseLeave={handleMouseLeave}
           className="cursor-grab"
         />
+        
+        {hoveredResource && (
+          <HoverCard open={true}>
+            <HoverCardTrigger asChild>
+              <div 
+                className="absolute w-1 h-1 bg-transparent" 
+                style={{ 
+                  left: getTooltipPosition(hoveredResource.x, hoveredResource.y).x, 
+                  top: getTooltipPosition(hoveredResource.x, hoveredResource.y).y 
+                }}
+              />
+            </HoverCardTrigger>
+            <HoverCardContent 
+              side="top" 
+              align="center" 
+              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 shadow-lg max-w-sm">
+              {getResourceSummary(hoveredResource)}
+            </HoverCardContent>
+          </HoverCard>
+        )}
         
         {hoveredConnection && (
           <TooltipProvider>
