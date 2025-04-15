@@ -1,3 +1,4 @@
+
 import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -768,4 +769,92 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
             {resource.dbName && <div className="text-sm">DB Name: {resource.dbName}</div>}
             <div className="text-sm">Engine: {resource.engine} {resource.engineVersion}</div>
             <div className="text-sm">Status: {resource.status}</div>
-            <div className="
+            <div className="text-sm">Endpoint: {resource.endpoint}</div>
+            <div className="text-sm">Port: {resource.port}</div>
+            <div className="text-sm">Security Groups: {resource.securityGroups?.length || 0}</div>
+          </div>
+        );
+      case 'igw':
+        return (
+          <div className="space-y-2">
+            <div className="font-medium">Internet Gateway</div>
+            <div className="text-sm">ID: {resource.id}</div>
+            <div className="text-sm">State: {resource.state}</div>
+            <div className="text-sm">VPC: {resource.vpcName}</div>
+          </div>
+        );
+      default:
+        return <div>No details available</div>;
+    }
+  };
+
+  return (
+    <TooltipProvider>
+      <div className="relative w-full h-full" ref={containerRef}>
+        <canvas
+          ref={canvasRef}
+          onClick={handleCanvasClick}
+          onMouseMove={handleMouseMove}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          className="cursor-grab"
+        />
+        
+        <div className="absolute bottom-4 left-4 flex flex-col space-y-2">
+          <Button variant="outline" size="sm" onClick={handleResetView}>
+            Reset View
+          </Button>
+          <div className="bg-white dark:bg-gray-800 p-2 rounded shadow-md">
+            <Slider
+              value={zoomLevel}
+              onValueChange={handleZoomChange}
+              min={0.5}
+              max={2}
+              step={0.1}
+              className="w-32"
+            />
+          </div>
+        </div>
+        
+        {hoveredResource && (
+          <div
+            className="absolute pointer-events-none z-50"
+            style={{
+              left: getTooltipPosition(hoveredResource.x, hoveredResource.y).x,
+              top: getTooltipPosition(hoveredResource.x, hoveredResource.y).y
+            }}
+          >
+            <div className="bg-white dark:bg-gray-800 shadow-lg rounded-md p-3 border border-gray-200 dark:border-gray-700 -translate-x-1/2 -translate-y-full mt-1">
+              {getResourceSummary(hoveredResource)}
+            </div>
+          </div>
+        )}
+        
+        {hoveredConnection && hoveredConnection.status === 'blocked' && (
+          <div
+            className="absolute pointer-events-none z-50"
+            style={{
+              left: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).x,
+              top: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).y
+            }}
+          >
+            <div className="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 shadow-lg rounded-md p-3 border border-red-200 dark:border-red-800 -translate-x-1/2 -translate-y-full mt-1">
+              <div className="flex items-start space-x-2">
+                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-medium">Connection Blocked</div>
+                  <div className="text-sm mt-1">{hoveredConnection.errorMessage}</div>
+                  <div className="text-xs mt-2">
+                    From: {hoveredConnection.source.name || hoveredConnection.source.id}<br />
+                    To: {hoveredConnection.target.id}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </TooltipProvider>
+  );
+};
