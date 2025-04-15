@@ -1,4 +1,3 @@
-
 import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -58,19 +57,17 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     });
   }, []);
 
-  // Add this function to calculate the tooltip position correctly
   const getTooltipPosition = (x: number, y: number) => {
     if (!containerRef.current) return { x: 0, y: 0 };
     const rect = containerRef.current.getBoundingClientRect();
     return {
       x: x * zoomLevel[0] + pan.x * zoomLevel[0] + rect.left,
-      y: y * zoomLevel[0] + pan.y * zoomLevel[0] + rect.top
+      y: y * zoomLevel[0] + pan.y * zoomLevel[0] + rect.top - 10
     };
   };
 
   useEffect(() => {
     if (!data) return;
-    
     
     const positions: any = {};
     
@@ -157,8 +154,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
 
   useEffect(() => {
     if (!canvasRef.current || !data || Object.keys(resourcePositions).length === 0 || Object.keys(awsLogos).length === 0) return;
-    
-    
     
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -541,7 +536,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
                 ...resource,
                 type,
                 x: posX + width/2,
-                y: posY,
+                y: posY - 5,
                 width,
                 height
               });
@@ -555,7 +550,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
                 ...resource,
                 type,
                 x: posX + width/2,
-                y: posY,
+                y: posY - 5,
                 width,
                 height
               });
@@ -569,7 +564,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
                 ...resource,
                 type,
                 x: posX + width/2,
-                y: posY - 10,
+                y: posY - 15,
                 width,
                 height
               });
@@ -583,7 +578,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
                 ...resource,
                 type,
                 x: posX + width/2,
-                y: posY - 10,
+                y: posY - 15,
                 width,
                 height
               });
@@ -600,7 +595,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
                 ...resource,
                 type,
                 x: posX,
-                y: posY - 10,
+                y: posY - 15,
                 width,
                 height
               });
@@ -790,7 +785,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
 
   return (
     <TooltipProvider>
-      <div className="relative w-full h-full" ref={containerRef}>
+      <div className="relative w-full h-full overflow-hidden" ref={containerRef}>
         <canvas
           ref={canvasRef}
           onClick={handleCanvasClick}
@@ -819,13 +814,14 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         
         {hoveredResource && (
           <div
-            className="absolute pointer-events-none z-50"
+            className="absolute pointer-events-none z-50 transition-opacity duration-200 opacity-100"
             style={{
               left: getTooltipPosition(hoveredResource.x, hoveredResource.y).x,
-              top: getTooltipPosition(hoveredResource.x, hoveredResource.y).y
+              top: getTooltipPosition(hoveredResource.x, hoveredResource.y).y,
+              transform: 'translate(-50%, -100%)'
             }}
           >
-            <div className="bg-white dark:bg-gray-800 shadow-lg rounded-md p-3 border border-gray-200 dark:border-gray-700 -translate-x-1/2 -translate-y-full mt-1">
+            <div className="bg-white dark:bg-gray-800 shadow-lg rounded-md p-3 border border-gray-200 dark:border-gray-700 max-w-xs">
               {getResourceSummary(hoveredResource)}
             </div>
           </div>
@@ -833,13 +829,14 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         
         {hoveredConnection && hoveredConnection.status === 'blocked' && (
           <div
-            className="absolute pointer-events-none z-50"
+            className="absolute pointer-events-none z-50 transition-opacity duration-200 opacity-100"
             style={{
               left: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).x,
-              top: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).y
+              top: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).y,
+              transform: 'translate(-50%, -100%)'
             }}
           >
-            <div className="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 shadow-lg rounded-md p-3 border border-red-200 dark:border-red-800 -translate-x-1/2 -translate-y-full mt-1">
+            <div className="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 shadow-lg rounded-md p-3 border border-red-200 dark:border-red-800 max-w-xs">
               <div className="flex items-start space-x-2">
                 <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
                 <div>
