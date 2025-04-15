@@ -1,3 +1,4 @@
+
 import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -61,8 +62,8 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     if (!containerRef.current) return { x: 0, y: 0 };
     const rect = containerRef.current.getBoundingClientRect();
     return {
-      x: x * zoomLevel[0] + pan.x * zoomLevel[0] + rect.left,
-      y: y * zoomLevel[0] + pan.y * zoomLevel[0] + rect.top - 10
+      x: (x * zoomLevel[0]) + (pan.x * zoomLevel[0]) + rect.left,
+      y: (y * zoomLevel[0]) + (pan.y * zoomLevel[0]) + rect.top - 10
     };
   };
 
