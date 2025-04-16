@@ -1,4 +1,3 @@
-
 import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -33,6 +32,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   const [isDragging, setIsDragging] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
   const [zoomLevel, setZoomLevel] = useState([1]);
+  const [tooltipTimeout, setTooltipTimeout] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const logoSources = {
@@ -58,13 +58,43 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     });
   }, []);
 
-  const getTooltipPosition = (x: number, y: number) => {
-    if (!containerRef.current) return { x: 0, y: 0 };
-    const rect = containerRef.current.getBoundingClientRect();
-    return {
-      x: (x * zoomLevel[0]) + (pan.x * zoomLevel[0]) + rect.left,
-      y: (y * zoomLevel[0]) + (pan.y * zoomLevel[0]) + rect.top - 10
-    };
+  const [tooltipElement, setTooltipElement] = useState<HTMLDivElement | null>(null);
+  
+  useEffect(() => {
+    if (!tooltipElement) {
+      const tooltip = document.createElement('div');
+      tooltip.className = 'fixed z-[200] bg-white dark:bg-gray-800 shadow-lg rounded-md p-3 border border-gray-200 dark:border-gray-700 max-w-xs opacity-0 pointer-events-none transition-opacity duration-200';
+      tooltip.style.display = 'none';
+      document.body.appendChild(tooltip);
+      setTooltipElement(tooltip);
+      
+      return () => {
+        document.body.removeChild(tooltip);
+      };
+    }
+  }, []);
+
+  const showTooltip = (content: string, x: number, y: number) => {
+    if (!tooltipElement) return;
+    
+    tooltipElement.innerHTML = content;
+    tooltipElement.style.display = 'block';
+    tooltipElement.style.left = `${x}px`;
+    tooltipElement.style.top = `${y}px`;
+    tooltipElement.style.transform = 'translate(-50%, -100%)';
+    
+    requestAnimationFrame(() => {
+      if (tooltipElement) tooltipElement.style.opacity = '1';
+    });
+  };
+
+  const hideTooltip = () => {
+    if (!tooltipElement) return;
+    
+    tooltipElement.style.opacity = '0';
+    setTimeout(() => {
+      if (tooltipElement) tooltipElement.style.display = 'none';
+    }, 200);
   };
 
   useEffect(() => {
@@ -518,6 +548,8 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         x: mouseX,
         y: mouseY
       });
+      
+      hideTooltip();
       return;
     }
     
@@ -533,56 +565,44 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           case 'vpc':
             resource = data.vpcs.find((vpc: any) => vpc.id === id);
             if (resource) {
-              setHoveredResource({
+              const tooltipContent = generateResourceTooltip({
                 ...resource,
-                type,
-                x: posX + width/2,
-                y: posY - 5,
-                width,
-                height
+                type
               });
+              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
               foundResource = true;
             }
             break;
           case 'subnet':
             resource = data.vpcs.flatMap((vpc: any) => vpc.subnets).find((subnet: any) => subnet.id === id);
             if (resource) {
-              setHoveredResource({
+              const tooltipContent = generateResourceTooltip({
                 ...resource,
-                type,
-                x: posX + width/2,
-                y: posY - 5,
-                width,
-                height
+                type
               });
+              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
               foundResource = true;
             }
             break;
           case 'ec2':
             resource = data.ec2Instances.find((ec2: any) => ec2.id === id);
             if (resource) {
-              setHoveredResource({
+              const tooltipContent = generateResourceTooltip({
                 ...resource,
-                type,
-                x: posX + width/2,
-                y: posY - 15,
-                width,
-                height
+                type
               });
+              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
               foundResource = true;
             }
             break;
           case 'rds':
             resource = data.rdsInstances.find((rds: any) => rds.id === id);
             if (resource) {
-              setHoveredResource({
+              const tooltipContent = generateResourceTooltip({
                 ...resource,
-                type,
-                x: posX + width/2,
-                y: posY - 15,
-                width,
-                height
+                type
               });
+              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
               foundResource = true;
             }
             break;
@@ -592,14 +612,11 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
               .map((vpc: any) => vpc.internetGateway)
               .find((igw: any) => igw.id === id);
             if (resource) {
-              setHoveredResource({
+              const tooltipContent = generateResourceTooltip({
                 ...resource,
-                type,
-                x: posX,
-                y: posY - 15,
-                width,
-                height
+                type
               });
+              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
               foundResource = true;
             }
             break;
@@ -608,46 +625,136 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       }
     }
     
-    if (!foundResource && hoveredResource) {
-      setHoveredResource(null);
-    }
-    
-    let foundConnection = false;
-    for (const connection of data.connections) {
-      if (connection.status !== 'blocked') continue;
-      
-      const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
-      const targetPos = resourcePositions[`rds-${connection.targetId}`];
-      
-      if (!sourcePos || !targetPos) continue;
-      
-      const sourceX = sourcePos.x + sourcePos.width/2;
-      const sourceY = sourcePos.y + sourcePos.height/2;
-      const targetX = targetPos.x + targetPos.width/2;
-      const targetY = targetPos.y + targetPos.height/2;
-      
-      const distance = distanceToLine(x, y, sourceX, sourceY, targetX, targetY);
-      if (distance < 10) {
-        const source = data.ec2Instances.find((ec2: any) => ec2.id === connection.sourceId);
-        const target = data.rdsInstances.find((rds: any) => rds.id === connection.targetId);
+    if (!foundResource) {
+      let foundConnection = false;
+      for (const connection of data.connections) {
+        if (connection.status !== 'blocked') continue;
         
-        if (source && target) {
-          setHoveredConnection({
-            ...connection,
-            source,
-            target,
-            x: (sourceX + targetX) / 2,
-            y: (sourceY + targetY) / 2
-          });
-          foundConnection = true;
-          break;
+        const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
+        const targetPos = resourcePositions[`rds-${connection.targetId}`];
+        
+        if (!sourcePos || !targetPos) continue;
+        
+        const sourceX = sourcePos.x + sourcePos.width/2;
+        const sourceY = sourcePos.y + sourcePos.height/2;
+        const targetX = targetPos.x + targetPos.width/2;
+        const targetY = targetPos.y + targetPos.height/2;
+        
+        const distance = distanceToLine(x, y, sourceX, sourceY, targetX, targetY);
+        if (distance < 10) {
+          const source = data.ec2Instances.find((ec2: any) => ec2.id === connection.sourceId);
+          const target = data.rdsInstances.find((rds: any) => rds.id === connection.targetId);
+          
+          if (source && target) {
+            const tooltipContent = generateConnectionTooltip({
+              ...connection,
+              source,
+              target
+            });
+            showTooltip(tooltipContent, e.clientX, e.clientY - 10);
+            foundConnection = true;
+            break;
+          }
         }
       }
+      
+      if (!foundConnection) {
+        hideTooltip();
+      }
+    }
+  };
+
+  const generateResourceTooltip = (resource: any) => {
+    if (!resource) return '';
+    
+    let html = '';
+    
+    switch (resource.type) {
+      case 'vpc':
+        html = `
+          <div class="space-y-2">
+            <div class="font-medium">${resource.name || ''}</div>
+            <div class="text-sm">ID: ${resource.id || ''}</div>
+            <div class="text-sm">CIDR: ${resource.cidr || ''}</div>
+            <div class="text-sm">Subnets: ${resource.subnetCount || '0'}</div>
+            <div class="text-sm">Instances: ${resource.instanceCount || '0'}</div>
+            <div class="text-sm">State: ${resource.state || ''}</div>
+          </div>
+        `;
+        break;
+      case 'subnet':
+        html = `
+          <div class="space-y-2">
+            <div class="font-medium">${resource.name || ''}</div>
+            <div class="text-sm">ID: ${resource.id || ''}</div>
+            <div class="text-sm">CIDR: ${resource.cidr || ''}</div>
+            <div class="text-sm">AZ: ${resource.az || ''}</div>
+            <div class="text-sm">Type: ${resource.isPublic ? 'Public' : 'Private'}</div>
+            <div class="text-sm">EC2: ${resource.ec2Count || '0'} instances</div>
+            <div class="text-sm">RDS: ${resource.rdsCount || '0'} instances</div>
+          </div>
+        `;
+        break;
+      case 'ec2':
+        html = `
+          <div class="space-y-2">
+            <div class="font-medium">${resource.name || resource.id || ''}</div>
+            <div class="text-sm">ID: ${resource.id || ''}</div>
+            <div class="text-sm">Type: ${resource.instanceType || ''}</div>
+            <div class="text-sm">State: ${resource.state || ''}</div>
+            <div class="text-sm">IP: ${resource.privateIp || ''}</div>
+            ${resource.publicIp ? `<div class="text-sm">Public IP: ${resource.publicIp}</div>` : ''}
+            <div class="text-sm">Security Groups: ${resource.securityGroups?.length || 0}</div>
+          </div>
+        `;
+        break;
+      case 'rds':
+        html = `
+          <div class="space-y-2">
+            <div class="font-medium">${resource.id || ''}</div>
+            ${resource.dbName ? `<div class="text-sm">DB Name: ${resource.dbName}</div>` : ''}
+            <div class="text-sm">Engine: ${resource.engine || ''} ${resource.engineVersion || ''}</div>
+            <div class="text-sm">Status: ${resource.status || ''}</div>
+            <div class="text-sm">Endpoint: ${resource.endpoint || ''}</div>
+            <div class="text-sm">Port: ${resource.port || ''}</div>
+            <div class="text-sm">Security Groups: ${resource.securityGroups?.length || 0}</div>
+          </div>
+        `;
+        break;
+      case 'igw':
+        html = `
+          <div class="space-y-2">
+            <div class="font-medium">Internet Gateway</div>
+            <div class="text-sm">ID: ${resource.id || ''}</div>
+            <div class="text-sm">State: ${resource.state || ''}</div>
+            <div class="text-sm">VPC: ${resource.vpcName || ''}</div>
+          </div>
+        `;
+        break;
+      default:
+        html = `<div>No details available</div>`;
     }
     
-    if (!foundConnection && hoveredConnection) {
-      setHoveredConnection(null);
-    }
+    return html;
+  };
+
+  const generateConnectionTooltip = (connection: any) => {
+    if (!connection) return '';
+    
+    return `
+      <div class="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 p-3 rounded-md border border-red-200 dark:border-red-800 max-w-xs">
+        <div class="flex items-start space-x-2">
+          <div>
+            <div class="font-medium">Connection Blocked</div>
+            <div class="text-sm mt-1">${connection.errorMessage || 'Security group rules blocking traffic'}</div>
+            <div class="text-xs mt-2">
+              From: ${connection.source?.name || connection.source?.id || ''}<br />
+              To: ${connection.target?.id || ''}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -663,6 +770,8 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     });
     
     canvas.style.cursor = 'grabbing';
+    
+    hideTooltip();
   };
 
   const handleMouseUp = () => {
@@ -677,17 +786,28 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     
     setIsDragging(false);
     canvasRef.current.style.cursor = 'grab';
+    
+    hideTooltip();
+    
     setHoveredResource(null);
     setHoveredConnection(null);
+    
+    if (tooltipTimeout) {
+      clearTimeout(tooltipTimeout);
+    }
   };
 
   const handleZoomChange = (newZoom: number[]) => {
     setZoomLevel(newZoom);
+    
+    hideTooltip();
   };
 
   const handleResetView = () => {
     setPan({ x: 0, y: 0 });
     setZoomLevel([1]);
+    
+    hideTooltip();
   };
   
   useEffect(() => {
@@ -719,71 +839,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     };
   }, []);
 
-  const getResourceSummary = (resource: any) => {
-    if (!resource) return null;
-    
-    switch (resource.type) {
-      case 'vpc':
-        return (
-          <div className="space-y-2">
-            <div className="font-medium">{resource.name}</div>
-            <div className="text-sm">ID: {resource.id}</div>
-            <div className="text-sm">CIDR: {resource.cidr}</div>
-            <div className="text-sm">Subnets: {resource.subnetCount}</div>
-            <div className="text-sm">Instances: {resource.instanceCount}</div>
-            <div className="text-sm">State: {resource.state}</div>
-          </div>
-        );
-      case 'subnet':
-        return (
-          <div className="space-y-2">
-            <div className="font-medium">{resource.name}</div>
-            <div className="text-sm">ID: {resource.id}</div>
-            <div className="text-sm">CIDR: {resource.cidr}</div>
-            <div className="text-sm">AZ: {resource.az}</div>
-            <div className="text-sm">Type: {resource.isPublic ? 'Public' : 'Private'}</div>
-            <div className="text-sm">EC2: {resource.ec2Count} instances</div>
-            <div className="text-sm">RDS: {resource.rdsCount} instances</div>
-          </div>
-        );
-      case 'ec2':
-        return (
-          <div className="space-y-2">
-            <div className="font-medium">{resource.name || resource.id}</div>
-            <div className="text-sm">ID: {resource.id}</div>
-            <div className="text-sm">Type: {resource.instanceType}</div>
-            <div className="text-sm">State: {resource.state}</div>
-            <div className="text-sm">IP: {resource.privateIp}</div>
-            {resource.publicIp && <div className="text-sm">Public IP: {resource.publicIp}</div>}
-            <div className="text-sm">Security Groups: {resource.securityGroups?.length || 0}</div>
-          </div>
-        );
-      case 'rds':
-        return (
-          <div className="space-y-2">
-            <div className="font-medium">{resource.id}</div>
-            {resource.dbName && <div className="text-sm">DB Name: {resource.dbName}</div>}
-            <div className="text-sm">Engine: {resource.engine} {resource.engineVersion}</div>
-            <div className="text-sm">Status: {resource.status}</div>
-            <div className="text-sm">Endpoint: {resource.endpoint}</div>
-            <div className="text-sm">Port: {resource.port}</div>
-            <div className="text-sm">Security Groups: {resource.securityGroups?.length || 0}</div>
-          </div>
-        );
-      case 'igw':
-        return (
-          <div className="space-y-2">
-            <div className="font-medium">Internet Gateway</div>
-            <div className="text-sm">ID: {resource.id}</div>
-            <div className="text-sm">State: {resource.state}</div>
-            <div className="text-sm">VPC: {resource.vpcName}</div>
-          </div>
-        );
-      default:
-        return <div>No details available</div>;
-    }
-  };
-
   return (
     <TooltipProvider>
       <div className="relative w-full h-full overflow-hidden" ref={containerRef}>
@@ -812,46 +867,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
             />
           </div>
         </div>
-        
-        {hoveredResource && (
-          <div
-            className="absolute pointer-events-none z-50 transition-opacity duration-200 opacity-100"
-            style={{
-              left: getTooltipPosition(hoveredResource.x, hoveredResource.y).x,
-              top: getTooltipPosition(hoveredResource.x, hoveredResource.y).y,
-              transform: 'translate(-50%, -100%)'
-            }}
-          >
-            <div className="bg-white dark:bg-gray-800 shadow-lg rounded-md p-3 border border-gray-200 dark:border-gray-700 max-w-xs">
-              {getResourceSummary(hoveredResource)}
-            </div>
-          </div>
-        )}
-        
-        {hoveredConnection && hoveredConnection.status === 'blocked' && (
-          <div
-            className="absolute pointer-events-none z-50 transition-opacity duration-200 opacity-100"
-            style={{
-              left: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).x,
-              top: getTooltipPosition(hoveredConnection.x, hoveredConnection.y).y,
-              transform: 'translate(-50%, -100%)'
-            }}
-          >
-            <div className="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 shadow-lg rounded-md p-3 border border-red-200 dark:border-red-800 max-w-xs">
-              <div className="flex items-start space-x-2">
-                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-medium">Connection Blocked</div>
-                  <div className="text-sm mt-1">{hoveredConnection.errorMessage}</div>
-                  <div className="text-xs mt-2">
-                    From: {hoveredConnection.source.name || hoveredConnection.source.id}<br />
-                    To: {hoveredConnection.target.id}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </TooltipProvider>
   );
