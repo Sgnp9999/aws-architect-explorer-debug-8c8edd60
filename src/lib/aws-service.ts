@@ -1,4 +1,3 @@
-
 import { 
   EC2Client, 
   DescribeVpcsCommand, 
@@ -12,12 +11,17 @@ import {
   RDSClient, 
   DescribeDBInstancesCommand 
 } from "@aws-sdk/client-rds";
+import {
+  LambdaClient,
+  ListFunctionsCommand
+} from "@aws-sdk/client-lambda";
 import { fromCognitoIdentityPool } from "@aws-sdk/credential-providers";
 
 // AWS service class to handle authentication and API calls
 export class AwsService {
   private ec2Client: EC2Client;
   private rdsClient: RDSClient;
+  private lambdaClient: LambdaClient;
   
   constructor(credentials: {
     accessKey: string;
@@ -34,6 +38,7 @@ export class AwsService {
     
     this.ec2Client = new EC2Client(config);
     this.rdsClient = new RDSClient(config);
+    this.lambdaClient = new LambdaClient(config);
   }
   
   // Fetch all VPC data
@@ -123,22 +128,35 @@ export class AwsService {
     }
   }
   
+  // Fetch Lambda functions
+  async fetchLambdaFunctions() {
+    try {
+      const command = new ListFunctionsCommand({});
+      const response = await this.lambdaClient.send(command);
+      return response.Functions || [];
+    } catch (error) {
+      console.error("Error fetching Lambda functions:", error);
+      throw error;
+    }
+  }
+  
   // Fetch all AWS architecture data
   async fetchAwsArchitecture() {
     try {
       // Fetch all resources in parallel for better performance
-      const [vpcs, subnets, ec2Instances, rdsInstances, securityGroups, internetGateways, routeTables] = await Promise.all([
+      const [vpcs, subnets, ec2Instances, rdsInstances, securityGroups, internetGateways, routeTables, lambdaFunctions] = await Promise.all([
         this.fetchVpcs(),
         this.fetchSubnets(),
         this.fetchEC2Instances(),
         this.fetchRDSInstances(),
         this.fetchSecurityGroups(),
         this.fetchInternetGateways(),
-        this.fetchRouteTables()
+        this.fetchRouteTables(),
+        this.fetchLambdaFunctions()
       ]);
       
       // Transform raw AWS data into the format our application expects
-      return this.transformAwsData(vpcs, subnets, ec2Instances, rdsInstances, securityGroups, internetGateways, routeTables);
+      return this.transformAwsData(vpcs, subnets, ec2Instances, rdsInstances, securityGroups, internetGateways, routeTables, lambdaFunctions);
     } catch (error) {
       console.error("Error fetching AWS architecture:", error);
       throw error;
@@ -146,7 +164,7 @@ export class AwsService {
   }
   
   // Transform raw AWS data into the format expected by our application
-  private transformAwsData(vpcs: any[], subnets: any[], ec2Instances: any[], rdsInstances: any[], securityGroups: any[], internetGateways: any[], routeTables: any[]) {
+  private transformAwsData(vpcs: any[], subnets: any[], ec2Instances: any[], rdsInstances: any[], securityGroups: any[], internetGateways: any[], routeTables: any[], lambdaFunctions: any[]) {
     // Process VPCs
     const processedVpcs = vpcs.map(vpc => {
       // Find subnets belonging to this VPC
@@ -325,6 +343,44 @@ export class AwsService {
       };
     });
     
+    // Process Lambda functions
+    const processedLambdas = lambdaFunctions.map(lambda => {
+      // Find VPC info if the Lambda is in a VPC
+      const vpcId = lambda.VpcConfig?.VpcId;
+      const vpc = vpcId ? vpcs.find(vpc => vpc.VpcId === vpcId) : null;
+      
+      // Find subnet info if Lambda is in subnets
+      const subnetIds = lambda.VpcConfig?.SubnetIds || [];
+      const lambdaSubnets = subnets.filter(subnet => 
+        subnetIds.includes(subnet.SubnetId)
+      );
+      
+      // Find security groups for this Lambda
+      const sgIds = lambda.VpcConfig?.SecurityGroupIds || [];
+      const lambdaSGs = sgIds.map(sgId => {
+        const fullSG = securityGroups.find(sg => sg.GroupId === sgId);
+        return {
+          groupId: sgId,
+          groupName: fullSG?.GroupName,
+          description: fullSG?.Description
+        };
+      });
+      
+      return {
+        id: lambda.FunctionName,
+        name: lambda.FunctionName,
+        runtime: lambda.Runtime,
+        memory: lambda.MemorySize,
+        timeout: lambda.Timeout,
+        lastModified: lambda.LastModified,
+        vpcId: vpcId,
+        vpcName: vpc?.Tags?.find(tag => tag.Key === 'Name')?.Value || vpc?.VpcId,
+        subnetIds: subnetIds,
+        securityGroups: lambdaSGs,
+        type: 'lambda'
+      };
+    });
+    
     // Analyze connectivity between EC2 and RDS instances based on security groups
     const connections = [];
     
@@ -372,6 +428,7 @@ export class AwsService {
       ec2Instances: processedEC2,
       rdsInstances: processedRDS,
       securityGroups: processedSGs,
+      lambdaFunctions: processedLambdas,
       connections
     };
   }

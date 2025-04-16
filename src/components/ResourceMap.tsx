@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Network, Shield, Server, Database, Globe, AlertTriangle, Layers } from "lucide-react";
+import { Network, Shield, Server, Database, Globe, AlertTriangle, Layers, Code } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -177,8 +177,57 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
             securityGroups: rds.securityGroups.map((sg: any) => sg.groupId)
           };
         });
+        
+        // Position Lambda functions
+        const lambdaFunctions = data.lambdaFunctions?.filter((lambda: any) => 
+          lambda.subnetIds?.includes(subnet.id)
+        ) || [];
+        
+        const lambdaPerRow = Math.ceil(Math.sqrt(lambdaFunctions.length));
+        const lambdaWidth = 50;
+        const lambdaHeight = 50;
+        const lambdaSpacing = 35;
+        
+        lambdaFunctions.forEach((lambda: any, lambdaIndex: number) => {
+          const lambdaX = subnetX + subnetWidth - 180 - (lambdaIndex % lambdaPerRow) * (lambdaWidth + lambdaSpacing);
+          const lambdaY = subnetY + 70 + Math.floor(lambdaIndex / lambdaPerRow) * (lambdaHeight + lambdaSpacing);
+          
+          positions[`lambda-${lambda.id}`] = {
+            x: lambdaX,
+            y: lambdaY,
+            width: lambdaWidth,
+            height: lambdaHeight,
+            securityGroups: lambda.securityGroups?.map((sg: any) => sg.groupId) || []
+          };
+        });
       });
     });
+    
+    // Handle Lambda functions not associated with a VPC
+    const nonVpcLambdas = data.lambdaFunctions?.filter((lambda: any) => !lambda.vpcId) || [];
+    if (nonVpcLambdas.length > 0) {
+      const lambdaPerRow = Math.ceil(Math.sqrt(nonVpcLambdas.length));
+      const lambdaWidth = 50;
+      const lambdaHeight = 50;
+      const lambdaSpacing = 60;
+      const startX = 100;
+      const startY = data.vpcs.length > 0 ? 
+        Math.max(...data.vpcs.map((vpc: any) => resourcePositions[`vpc-${vpc.id}`]?.y + resourcePositions[`vpc-${vpc.id}`]?.height || 0)) + 200 : 
+        100;
+      
+      nonVpcLambdas.forEach((lambda: any, lambdaIndex: number) => {
+        const lambdaX = startX + (lambdaIndex % lambdaPerRow) * (lambdaWidth + lambdaSpacing);
+        const lambdaY = startY + Math.floor(lambdaIndex / lambdaPerRow) * (lambdaHeight + lambdaSpacing);
+        
+        positions[`lambda-${lambda.id}`] = {
+          x: lambdaX,
+          y: lambdaY,
+          width: lambdaWidth,
+          height: lambdaHeight,
+          securityGroups: lambda.securityGroups?.map((sg: any) => sg.groupId) || []
+        };
+      });
+    }
     
     setResourcePositions(positions);
   }, [data]);
@@ -421,6 +470,42 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         }
       });
     }
+    
+    if (visibleResources.includes('lambda') && data.lambdaFunctions) {
+      data.lambdaFunctions.forEach((lambda: any) => {
+        const pos = resourcePositions[`lambda-${lambda.id}`];
+        if (!pos) return;
+        
+        if (visibleResources.includes('sg')) {
+          ctx.fillStyle = 'rgba(226, 232, 240, 0.3)';
+          ctx.strokeStyle = '#64748b';
+          ctx.setLineDash([5, 5]);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.ellipse(pos.x + pos.width/2, pos.y + pos.height/2, pos.width * 0.9, pos.height * 0.9, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        
+        ctx.fillStyle = '#f1f5f9';
+        ctx.strokeStyle = '#6366f1';
+        ctx.lineWidth = 1;
+        ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
+        ctx.strokeRect(pos.x, pos.y, pos.width, pos.height);
+        
+        ctx.fillStyle = '#6366f1';
+        ctx.font = 'bold 24px Arial';
+        ctx.fillText('λ', pos.x + 15, pos.y + 32);
+        
+        ctx.fillStyle = '#000';
+        ctx.font = '12px Arial';
+        const lambdaIdText = lambda.id && typeof lambda.id === 'string' 
+          ? lambda.id.split('-').pop() 
+          : (lambda.id && lambda.id.toString ? lambda.id.toString().substring(0, 6) : '');
+        ctx.fillText(lambdaIdText, pos.x, pos.y - 5);
+      });
+    }
   }, [data, resourcePositions, visibleResources, awsLogos, pan, zoomLevel]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -456,6 +541,9 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
               .filter((vpc: any) => vpc.internetGateway)
               .map((vpc: any) => vpc.internetGateway)
               .find((igw: any) => igw.id === id);
+            break;
+          case 'lambda':
+            resource = data.lambdaFunctions.find((lambda: any) => lambda.id === id);
             break;
         }
         
@@ -620,6 +708,17 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
               foundResource = true;
             }
             break;
+          case 'lambda':
+            resource = data.lambdaFunctions.find((lambda: any) => lambda.id === id);
+            if (resource) {
+              const tooltipContent = generateResourceTooltip({
+                ...resource,
+                type
+              });
+              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
+              foundResource = true;
+            }
+            break;
         }
         if (foundResource) break;
       }
@@ -728,6 +827,19 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
             <div class="text-sm">ID: ${resource.id || ''}</div>
             <div class="text-sm">State: ${resource.state || ''}</div>
             <div class="text-sm">VPC: ${resource.vpcName || ''}</div>
+          </div>
+        `;
+        break;
+      case 'lambda':
+        html = `
+          <div class="space-y-2">
+            <div class="font-medium">${resource.name || ''}</div>
+            <div class="text-sm">Runtime: ${resource.runtime || ''}</div>
+            <div class="text-sm">Memory: ${resource.memory || ''}MB</div>
+            <div class="text-sm">Timeout: ${resource.timeout || ''}s</div>
+            <div class="text-sm">Last Modified: ${resource.lastModified ? new Date(resource.lastModified).toLocaleString() : ''}</div>
+            ${resource.vpcId ? `<div class="text-sm">VPC: ${resource.vpcName || resource.vpcId}</div>` : '<div class="text-sm">VPC: Not in VPC</div>'}
+            <div class="text-sm">Security Groups: ${resource.securityGroups?.length || 0}</div>
           </div>
         `;
         break;

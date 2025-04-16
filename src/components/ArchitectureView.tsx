@@ -11,7 +11,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, RefreshCw, Search, Download, LogOut, Moon, Sun, Filter, Network, Database, Shield, Cpu, Layers, Server, Cloud, Globe, HelpCircle, Info, User } from "lucide-react";
+import { Loader2, RefreshCw, Search, Download, LogOut, Moon, Sun, Filter, Network, Database, Shield, Cpu, Layers, Server, Cloud, Globe, HelpCircle, Info, User, LucideCode } from "lucide-react";
 import { ResourcePanel } from "@/components/ResourcePanel";
 import { mockAwsData } from "@/lib/mock-aws-data";
 import { ResourceMap } from "@/components/ResourceMap";
@@ -33,7 +33,7 @@ export const ArchitectureView = ({ credentials }: ArchitectureViewProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [darkMode, setDarkMode] = useState(false);
   const [visibleResources, setVisibleResources] = useState<string[]>([
-    "vpc", "subnet", "igw", "ec2", "rds", "sg"
+    "vpc", "subnet", "igw", "ec2", "rds", "sg", "lambda"
   ]);
   const [error, setError] = useState<string | null>(null);
   const awsService = useRef<AwsService | null>(null);
@@ -166,6 +166,10 @@ export const ArchitectureView = ({ credentials }: ArchitectureViewProps) => {
         sg.id.toLowerCase().includes(query) ||
         (sg.name && sg.name.toLowerCase().includes(query))
       ),
+      lambdaFunctions: resources.lambdaFunctions?.filter((lambda: any) =>
+        lambda.id.toLowerCase().includes(query) ||
+        (lambda.name && lambda.name.toLowerCase().includes(query))
+      ) || [],
     };
   };
 
@@ -354,7 +358,8 @@ const InfoSidebar = ({
                 { id: 'sg', label: 'Security Groups', icon: Shield },
                 { id: 'igw', label: 'Internet Gateways', icon: Globe },
                 { id: 'ec2', label: 'EC2 Instances', icon: Server },
-                { id: 'rds', label: 'RDS Databases', icon: Database }
+                { id: 'rds', label: 'RDS Databases', icon: Database },
+                { id: 'lambda', label: 'Lambda Functions', icon: LucideCode }
               ].map((resource) => (
                 <div key={resource.id} className="flex items-center">
                   <Switch
