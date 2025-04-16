@@ -33,6 +33,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
   const [zoomLevel, setZoomLevel] = useState([1]);
   const [tooltipTimeout, setTooltipTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [showAllConnections, setShowAllConnections] = useState(true);
 
   useEffect(() => {
     const logoSources = {
@@ -232,6 +233,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     setResourcePositions(positions);
   }, [data]);
 
+  // Enhanced rendering code to show all connections
   useEffect(() => {
     if (!canvasRef.current || !data || Object.keys(resourcePositions).length === 0 || Object.keys(awsLogos).length === 0) return;
     
@@ -252,6 +254,182 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       pan.x * zoomLevel[0],
       pan.y * zoomLevel[0]
     );
+    
+    // Draw connection lines first (beneath resources)
+    if (showAllConnections) {
+      // Draw connections between resources in different subnets
+      if (visibleResources.includes('ec2') && visibleResources.includes('subnet')) {
+        // Connect EC2 to Internet Gateway if in public subnet
+        data.ec2Instances.forEach((ec2: any) => {
+          const ec2Pos = resourcePositions[`ec2-${ec2.id}`];
+          if (!ec2Pos) return;
+          
+          // Find the EC2's subnet
+          const subnet = data.vpcs.flatMap((vpc: any) => vpc.subnets).find((subnet: any) => subnet.id === ec2.subnetId);
+          if (!subnet || !subnet.isPublic) return;
+          
+          // Find the VPC's internet gateway
+          const vpc = data.vpcs.find((vpc: any) => vpc.id === subnet.vpcId);
+          if (!vpc || !vpc.internetGateway) return;
+          
+          const igwPos = resourcePositions[`igw-${vpc.internetGateway.id}`];
+          if (!igwPos) return;
+          
+          const sourceX = ec2Pos.x + ec2Pos.width/2;
+          const sourceY = ec2Pos.y + ec2Pos.height/2;
+          const targetX = igwPos.x;
+          const targetY = igwPos.y;
+          
+          ctx.beginPath();
+          ctx.moveTo(sourceX, sourceY);
+          ctx.lineTo(targetX, targetY);
+          ctx.strokeStyle = '#0ea5e9';
+          ctx.setLineDash([5, 3]);
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.setLineDash([]);
+        });
+      }
+      
+      // Draw connections between EC2 and RDS
+      if (visibleResources.includes('ec2') && visibleResources.includes('rds')) {
+        data.connections.forEach((connection: any) => {
+          const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
+          const targetPos = resourcePositions[`rds-${connection.targetId}`];
+          
+          if (!sourcePos || !targetPos) return;
+          
+          const sourceX = sourcePos.x + sourcePos.width/2;
+          const sourceY = sourcePos.y + sourcePos.height/2;
+          const targetX = targetPos.x + targetPos.width/2;
+          const targetY = targetPos.y + targetPos.height/2;
+          
+          ctx.beginPath();
+          ctx.moveTo(sourceX, sourceY);
+          ctx.lineTo(targetX, targetY);
+          
+          if (connection.status === 'allowed') {
+            ctx.strokeStyle = '#22c55e';
+            ctx.setLineDash([]);
+          } else {
+            ctx.strokeStyle = '#ef4444';
+            ctx.setLineDash([5, 3]);
+          }
+          
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.setLineDash([]);
+          
+          const angle = Math.atan2(targetY - sourceY, targetX - sourceX);
+          const arrowSize = 8;
+          
+          ctx.beginPath();
+          ctx.moveTo(
+            targetX - arrowSize * Math.cos(angle) + arrowSize * Math.sin(angle),
+            targetY - arrowSize * Math.sin(angle) - arrowSize * Math.cos(angle)
+          );
+          ctx.lineTo(targetX, targetY);
+          ctx.lineTo(
+            targetX - arrowSize * Math.cos(angle) - arrowSize * Math.sin(angle),
+            targetY - arrowSize * Math.sin(angle) + arrowSize * Math.cos(angle)
+          );
+          ctx.stroke();
+          
+          if (connection.status === 'blocked') {
+            const midX = (sourceX + targetX) / 2;
+            const midY = (sourceY + targetY) / 2;
+            
+            ctx.fillStyle = '#fef2f2';
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(midX, midY, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = '#ef4444';
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText('!', midX - 3, midY + 5);
+          }
+        });
+      }
+      
+      // Connect Lambda functions to resources they interact with
+      if (visibleResources.includes('lambda')) {
+        // Connect Lambda functions to RDS instances
+        if (visibleResources.includes('rds') && data.lambdaFunctions) {
+          data.lambdaFunctions.forEach((lambda: any) => {
+            const lambdaPos = resourcePositions[`lambda-${lambda.id}`];
+            if (!lambdaPos) return;
+            
+            data.rdsInstances.forEach((rds: any) => {
+              if (lambda.vpcId === rds.vpcId) {
+                const rdsPos = resourcePositions[`rds-${rds.id}`];
+                if (!rdsPos) return;
+                
+                const sourceX = lambdaPos.x + lambdaPos.width/2;
+                const sourceY = lambdaPos.y + lambdaPos.height/2;
+                const targetX = rdsPos.x + rdsPos.width/2;
+                const targetY = rdsPos.y + rdsPos.height/2;
+                
+                ctx.beginPath();
+                ctx.moveTo(sourceX, sourceY);
+                ctx.lineTo(targetX, targetY);
+                ctx.strokeStyle = '#6366f1';
+                ctx.setLineDash([2, 2]);
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                const angle = Math.atan2(targetY - sourceY, targetX - sourceX);
+                const arrowSize = 6;
+                
+                ctx.beginPath();
+                ctx.moveTo(
+                  targetX - arrowSize * Math.cos(angle) + arrowSize * Math.sin(angle),
+                  targetY - arrowSize * Math.sin(angle) - arrowSize * Math.cos(angle)
+                );
+                ctx.lineTo(targetX, targetY);
+                ctx.lineTo(
+                  targetX - arrowSize * Math.cos(angle) - arrowSize * Math.sin(angle),
+                  targetY - arrowSize * Math.sin(angle) + arrowSize * Math.cos(angle)
+                );
+                ctx.stroke();
+              }
+            });
+          });
+        }
+        
+        // Connect serverless Lambda to Internet Gateway
+        data.lambdaFunctions?.forEach((lambda: any) => {
+          if (!lambda.vpcId) {
+            const lambdaPos = resourcePositions[`lambda-${lambda.id}`];
+            if (!lambdaPos) return;
+            
+            data.vpcs.forEach((vpc: any) => {
+              if (vpc.internetGateway) {
+                const igwPos = resourcePositions[`igw-${vpc.internetGateway.id}`];
+                if (!igwPos) return;
+                
+                const sourceX = lambdaPos.x + lambdaPos.width/2;
+                const sourceY = lambdaPos.y + lambdaPos.height/2;
+                const targetX = igwPos.x;
+                const targetY = igwPos.y;
+                
+                ctx.beginPath();
+                ctx.moveTo(sourceX, sourceY);
+                ctx.lineTo(targetX, targetY);
+                ctx.strokeStyle = '#8b5cf6';
+                ctx.setLineDash([4, 2]);
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                ctx.setLineDash([]);
+              }
+            });
+          }
+        });
+      }
+    }
     
     if (visibleResources.includes('vpc')) {
       data.vpcs.forEach((vpc: any) => {
@@ -409,68 +587,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       });
     }
     
-    if (visibleResources.includes('ec2') && visibleResources.includes('rds')) {
-      data.connections.forEach((connection: any) => {
-        const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
-        const targetPos = resourcePositions[`rds-${connection.targetId}`];
-        
-        if (!sourcePos || !targetPos) return;
-        
-        const sourceX = sourcePos.x + sourcePos.width/2;
-        const sourceY = sourcePos.y + sourcePos.height/2;
-        const targetX = targetPos.x + targetPos.width/2;
-        const targetY = targetPos.y + targetPos.height/2;
-        
-        ctx.beginPath();
-        ctx.moveTo(sourceX, sourceY);
-        ctx.lineTo(targetX, targetY);
-        
-        if (connection.status === 'allowed') {
-          ctx.strokeStyle = '#22c55e';
-          ctx.setLineDash([]);
-        } else {
-          ctx.strokeStyle = '#ef4444';
-          ctx.setLineDash([5, 3]);
-        }
-        
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.setLineDash([]);
-        
-        const angle = Math.atan2(targetY - sourceY, targetX - sourceX);
-        const arrowSize = 8;
-        
-        ctx.beginPath();
-        ctx.moveTo(
-          targetX - arrowSize * Math.cos(angle) + arrowSize * Math.sin(angle),
-          targetY - arrowSize * Math.sin(angle) - arrowSize * Math.cos(angle)
-        );
-        ctx.lineTo(targetX, targetY);
-        ctx.lineTo(
-          targetX - arrowSize * Math.cos(angle) - arrowSize * Math.sin(angle),
-          targetY - arrowSize * Math.sin(angle) + arrowSize * Math.cos(angle)
-        );
-        ctx.stroke();
-        
-        if (connection.status === 'blocked') {
-          const midX = (sourceX + targetX) / 2;
-          const midY = (sourceY + targetY) / 2;
-          
-          ctx.fillStyle = '#fef2f2';
-          ctx.strokeStyle = '#ef4444';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.arc(midX, midY, 12, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          
-          ctx.fillStyle = '#ef4444';
-          ctx.font = 'bold 14px Arial';
-          ctx.fillText('!', midX - 3, midY + 5);
-        }
-      });
-    }
-    
     if (visibleResources.includes('lambda') && data.lambdaFunctions) {
       data.lambdaFunctions.forEach((lambda: any) => {
         const pos = resourcePositions[`lambda-${lambda.id}`];
@@ -506,7 +622,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         ctx.fillText(lambdaIdText, pos.x, pos.y - 5);
       });
     }
-  }, [data, resourcePositions, visibleResources, awsLogos, pan, zoomLevel]);
+  }, [data, resourcePositions, visibleResources, awsLogos, pan, zoomLevel, showAllConnections]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !data || isDragging) return;
@@ -726,34 +842,72 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     
     if (!foundResource) {
       let foundConnection = false;
-      for (const connection of data.connections) {
-        if (connection.status !== 'blocked') continue;
-        
-        const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
-        const targetPos = resourcePositions[`rds-${connection.targetId}`];
-        
-        if (!sourcePos || !targetPos) continue;
-        
-        const sourceX = sourcePos.x + sourcePos.width/2;
-        const sourceY = sourcePos.y + sourcePos.height/2;
-        const targetX = targetPos.x + targetPos.width/2;
-        const targetY = targetPos.y + targetPos.height/2;
-        
-        const distance = distanceToLine(x, y, sourceX, sourceY, targetX, targetY);
-        if (distance < 10) {
-          const source = data.ec2Instances.find((ec2: any) => ec2.id === connection.sourceId);
-          const target = data.rdsInstances.find((rds: any) => rds.id === connection.targetId);
+      // Check for hovering over connection lines
+      if (showAllConnections) {
+        // Check EC2 to RDS connections
+        for (const connection of data.connections) {
+          const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
+          const targetPos = resourcePositions[`rds-${connection.targetId}`];
           
-          if (source && target) {
-            const tooltipContent = generateConnectionTooltip({
-              ...connection,
-              source,
-              target
-            });
-            showTooltip(tooltipContent, e.clientX, e.clientY - 10);
-            foundConnection = true;
-            break;
+          if (!sourcePos || !targetPos) continue;
+          
+          const sourceX = sourcePos.x + sourcePos.width/2;
+          const sourceY = sourcePos.y + sourcePos.height/2;
+          const targetX = targetPos.x + targetPos.width/2;
+          const targetY = targetPos.y + targetPos.height/2;
+          
+          const distance = distanceToLine(x, y, sourceX, sourceY, targetX, targetY);
+          if (distance < 10) {
+            const source = data.ec2Instances.find((ec2: any) => ec2.id === connection.sourceId);
+            const target = data.rdsInstances.find((rds: any) => rds.id === connection.targetId);
+            
+            if (source && target) {
+              const tooltipContent = generateConnectionTooltip({
+                ...connection,
+                source,
+                target
+              });
+              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
+              foundConnection = true;
+              break;
+            }
           }
+        }
+        
+        // Check Lambda to RDS connections
+        if (!foundConnection && visibleResources.includes('lambda') && visibleResources.includes('rds') && data.lambdaFunctions) {
+          data.lambdaFunctions.forEach((lambda: any) => {
+            if (!lambda.vpcId) return;
+            
+            const lambdaPos = resourcePositions[`lambda-${lambda.id}`];
+            if (!lambdaPos) return;
+            
+            data.rdsInstances.forEach((rds: any) => {
+              if (lambda.vpcId !== rds.vpcId) return;
+              
+              const rdsPos = resourcePositions[`rds-${rds.id}`];
+              if (!rdsPos) return;
+              
+              const sourceX = lambdaPos.x + lambdaPos.width/2;
+              const sourceY = lambdaPos.y + lambdaPos.height/2;
+              const targetX = rdsPos.x + rdsPos.width/2;
+              const targetY = rdsPos.y + rdsPos.height/2;
+              
+              const distance = distanceToLine(x, y, sourceX, sourceY, targetX, targetY);
+              if (distance < 10) {
+                const tooltipContent = `
+                  <div class="space-y-2">
+                    <div class="font-medium">Lambda to RDS Connection</div>
+                    <div class="text-sm">From: ${lambda.name}</div>
+                    <div class="text-sm">To: ${rds.id}</div>
+                    <div class="text-sm text-blue-600">Function can access database</div>
+                  </div>
+                `;
+                showTooltip(tooltipContent, e.clientX, e.clientY - 10);
+                foundConnection = true;
+              }
+            });
+          });
         }
       }
       
@@ -853,20 +1007,36 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   const generateConnectionTooltip = (connection: any) => {
     if (!connection) return '';
     
-    return `
-      <div class="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 p-3 rounded-md border border-red-200 dark:border-red-800 max-w-xs">
-        <div class="flex items-start space-x-2">
-          <div>
-            <div class="font-medium">Connection Blocked</div>
-            <div class="text-sm mt-1">${connection.errorMessage || 'Security group rules blocking traffic'}</div>
-            <div class="text-xs mt-2">
-              From: ${connection.source?.name || connection.source?.id || ''}<br />
-              To: ${connection.target?.id || ''}
+    if (connection.status === 'blocked') {
+      return `
+        <div class="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 p-3 rounded-md border border-red-200 dark:border-red-800 max-w-xs">
+          <div class="flex items-start space-x-2">
+            <div>
+              <div class="font-medium">Connection Blocked</div>
+              <div class="text-sm mt-1">${connection.errorMessage || 'Security group rules blocking traffic'}</div>
+              <div class="text-xs mt-2">
+                From: ${connection.source?.name || connection.source?.id || ''}<br />
+                To: ${connection.target?.id || ''}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    `;
+      `;
+    } else {
+      return `
+        <div class="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 p-3 rounded-md border border-green-200 dark:border-green-800 max-w-xs">
+          <div class="flex items-start space-x-2">
+            <div>
+              <div class="font-medium">Connection Allowed</div>
+              <div class="text-xs mt-2">
+                From: ${connection.source?.name || connection.source?.id || ''}<br />
+                To: ${connection.target?.id || ''}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -921,6 +1091,10 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     
     hideTooltip();
   };
+
+  const toggleConnections = () => {
+    setShowAllConnections(!showAllConnections);
+  };
   
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
@@ -967,6 +1141,15 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         <div className="absolute bottom-4 left-4 flex flex-col space-y-2">
           <Button variant="outline" size="sm" onClick={handleResetView}>
             Reset View
+          </Button>
+          <Button 
+            variant={showAllConnections ? "default" : "outline"} 
+            size="sm" 
+            onClick={toggleConnections}
+            className="flex items-center gap-2"
+          >
+            <Network size={16} />
+            {showAllConnections ? "Hide Connections" : "Show Connections"}
           </Button>
           <div className="bg-white dark:bg-gray-800 p-2 rounded shadow-md">
             <Slider
