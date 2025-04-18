@@ -233,7 +233,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     setResourcePositions(positions);
   }, [data]);
 
-  // Enhanced rendering code to show all connections
   useEffect(() => {
     if (!canvasRef.current || !data || Object.keys(resourcePositions).length === 0 || Object.keys(awsLogos).length === 0) return;
     
@@ -255,7 +254,6 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       pan.y * zoomLevel[0]
     );
     
-    // Draw connection lines first (beneath resources)
     if (showAllConnections) {
       // Draw connections between resources in different subnets
       if (visibleResources.includes('ec2') && visibleResources.includes('subnet')) {
@@ -700,4 +698,352 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     const y = (e.clientY - rect.top - pan.y * zoomLevel[0]) / zoomLevel[0];
     
     for (const [key, pos] of Object.entries(resourcePositions)) {
-      const
+      const resourcePos = pos as any;
+      
+      if (x >= resourcePos.x && 
+          x <= resourcePos.x + resourcePos.width && 
+          y >= resourcePos.y && 
+          y <= resourcePos.y + resourcePos.height) {
+        
+        const [resourceType, resourceId] = key.split('-');
+        
+        let foundResource;
+        
+        switch(resourceType) {
+          case 'vpc':
+            foundResource = data.vpcs.find((vpc: any) => vpc.id === resourceId);
+            if (foundResource) onResourceClick({ type: 'vpc', ...foundResource });
+            break;
+          case 'subnet':
+            foundResource = data.vpcs.flatMap((vpc: any) => vpc.subnets).find((subnet: any) => subnet.id === resourceId);
+            if (foundResource) onResourceClick({ type: 'subnet', ...foundResource });
+            break;
+          case 'igw':
+            foundResource = data.vpcs.map((vpc: any) => vpc.internetGateway).filter(Boolean).find((igw: any) => igw.id === resourceId);
+            if (foundResource) onResourceClick({ type: 'internetGateway', ...foundResource });
+            break;
+          case 'ec2':
+            foundResource = data.ec2Instances.find((instance: any) => instance.id === resourceId);
+            if (foundResource) onResourceClick({ type: 'ec2', ...foundResource });
+            break;
+          case 'rds':
+            foundResource = data.rdsInstances.find((rds: any) => rds.id === resourceId);
+            if (foundResource) onResourceClick({ type: 'rds', ...foundResource });
+            break;
+          case 'lambda':
+            foundResource = data.lambdaFunctions?.find((lambda: any) => lambda.id === resourceId);
+            if (foundResource) onResourceClick({ type: 'lambda', ...foundResource });
+            break;
+        }
+        
+        return;
+      }
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current || !data) return;
+    
+    if (isDragging) {
+      const deltaX = e.clientX - startPan.x;
+      const deltaY = e.clientY - startPan.y;
+      setPan({ x: pan.x + deltaX / zoomLevel[0], y: pan.y + deltaY / zoomLevel[0] });
+      setStartPan({ x: e.clientX, y: e.clientY });
+      return;
+    }
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left - pan.x * zoomLevel[0]) / zoomLevel[0];
+    const y = (e.clientY - rect.top - pan.y * zoomLevel[0]) / zoomLevel[0];
+    
+    if (showAllConnections) {
+      // Check EC2 to RDS connections
+      if (visibleResources.includes('ec2') && visibleResources.includes('rds')) {
+        for (const connection of data.connections.filter((conn: any) => 
+          conn.sourceType === 'ec2' && conn.targetType === 'rds'
+        )) {
+          const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
+          const targetPos = resourcePositions[`rds-${connection.targetId}`];
+          
+          if (!sourcePos || !targetPos) continue;
+          
+          const sourceX = sourcePos.x + sourcePos.width/2;
+          const sourceY = sourcePos.y + sourcePos.height/2;
+          const targetX = targetPos.x + targetPos.width/2;
+          const targetY = targetPos.y + targetPos.height/2;
+          
+          const distance = distanceToLineSegment(
+            { x, y },
+            { x: sourceX, y: sourceY },
+            { x: targetX, y: targetY }
+          );
+          
+          if (distance < 10) {
+            const sourceInstance = data.ec2Instances.find((ec2: any) => ec2.id === connection.sourceId);
+            const targetInstance = data.rdsInstances.find((rds: any) => rds.id === connection.targetId);
+            
+            if (sourceInstance && targetInstance) {
+              setHoveredConnection(connection);
+              
+              const content = `
+                <div class="font-medium">Connection</div>
+                <div class="mt-1">From: EC2 (${sourceInstance.name || sourceInstance.id})</div>
+                <div>To: RDS (${targetInstance.name || targetInstance.id})</div>
+                <div class="mt-1 ${connection.status === 'allowed' ? 'text-green-600' : 'text-red-600'}">
+                  Status: ${connection.status === 'allowed' ? 'Allowed' : 'Blocked'}
+                </div>
+                ${connection.reason ? `<div class="mt-1">Reason: ${connection.reason}</div>` : ''}
+              `;
+              
+              showTooltip(content, e.clientX, e.clientY);
+              
+              return;
+            }
+          }
+        }
+      }
+      
+      // Check EC2 to Lambda connections
+      if (visibleResources.includes('ec2') && visibleResources.includes('lambda')) {
+        for (const connection of data.connections.filter((conn: any) => 
+          conn.sourceType === 'ec2' && conn.targetType === 'lambda'
+        )) {
+          const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
+          const targetPos = resourcePositions[`lambda-${connection.targetId}`];
+          
+          if (!sourcePos || !targetPos) continue;
+          
+          const sourceX = sourcePos.x + sourcePos.width/2;
+          const sourceY = sourcePos.y + sourcePos.height/2;
+          const targetX = targetPos.x + targetPos.width/2;
+          const targetY = targetPos.y + targetPos.height/2;
+          
+          const distance = distanceToLineSegment(
+            { x, y },
+            { x: sourceX, y: sourceY },
+            { x: targetX, y: targetY }
+          );
+          
+          if (distance < 10) {
+            const sourceInstance = data.ec2Instances.find((ec2: any) => ec2.id === connection.sourceId);
+            const targetFunction = data.lambdaFunctions?.find((lambda: any) => lambda.id === connection.targetId);
+            
+            if (sourceInstance && targetFunction) {
+              setHoveredConnection(connection);
+              
+              const content = `
+                <div class="font-medium">Connection</div>
+                <div class="mt-1">From: EC2 (${sourceInstance.name || sourceInstance.id})</div>
+                <div>To: Lambda (${targetFunction.name || targetFunction.id})</div>
+                <div class="mt-1 ${connection.status === 'allowed' ? 'text-green-600' : 'text-red-600'}">
+                  Status: ${connection.status === 'allowed' ? 'Allowed' : 'Blocked'}
+                </div>
+                ${connection.reason ? `<div class="mt-1">Reason: ${connection.reason}</div>` : ''}
+              `;
+              
+              showTooltip(content, e.clientX, e.clientY);
+              
+              return;
+            }
+          }
+        }
+      }
+    }
+    
+    for (const [key, pos] of Object.entries(resourcePositions)) {
+      const resourcePos = pos as any;
+      
+      if (x >= resourcePos.x && 
+          x <= resourcePos.x + resourcePos.width && 
+          y >= resourcePos.y && 
+          y <= resourcePos.y + resourcePos.height) {
+        
+        const [resourceType, resourceId] = key.split('-');
+        
+        let resourceContent = '';
+        let foundResource;
+        
+        switch(resourceType) {
+          case 'vpc':
+            foundResource = data.vpcs.find((vpc: any) => vpc.id === resourceId);
+            if (foundResource) {
+              resourceContent = `
+                <div class="font-medium">VPC</div>
+                <div class="mt-1">ID: ${foundResource.id}</div>
+                <div>Name: ${foundResource.name || 'N/A'}</div>
+                <div>CIDR: ${foundResource.cidr}</div>
+              `;
+            }
+            break;
+          case 'subnet':
+            foundResource = data.vpcs.flatMap((vpc: any) => vpc.subnets).find((subnet: any) => subnet.id === resourceId);
+            if (foundResource) {
+              resourceContent = `
+                <div class="font-medium">Subnet</div>
+                <div class="mt-1">ID: ${foundResource.id}</div>
+                <div>Name: ${foundResource.name || 'N/A'}</div>
+                <div>CIDR: ${foundResource.cidr}</div>
+                <div>Type: ${foundResource.isPublic ? 'Public' : 'Private'}</div>
+              `;
+            }
+            break;
+          case 'igw':
+            foundResource = data.vpcs.map((vpc: any) => vpc.internetGateway).filter(Boolean).find((igw: any) => igw.id === resourceId);
+            if (foundResource) {
+              resourceContent = `
+                <div class="font-medium">Internet Gateway</div>
+                <div class="mt-1">ID: ${foundResource.id}</div>
+              `;
+            }
+            break;
+          case 'ec2':
+            foundResource = data.ec2Instances.find((instance: any) => instance.id === resourceId);
+            if (foundResource) {
+              resourceContent = `
+                <div class="font-medium">EC2 Instance</div>
+                <div class="mt-1">ID: ${foundResource.id}</div>
+                <div>Name: ${foundResource.name || 'N/A'}</div>
+                <div>Type: ${foundResource.instanceType || 'N/A'}</div>
+                <div>State: ${foundResource.state || 'N/A'}</div>
+              `;
+            }
+            break;
+          case 'rds':
+            foundResource = data.rdsInstances.find((rds: any) => rds.id === resourceId);
+            if (foundResource) {
+              resourceContent = `
+                <div class="font-medium">RDS Database</div>
+                <div class="mt-1">ID: ${foundResource.id}</div>
+                <div>Engine: ${foundResource.engine || 'N/A'}</div>
+                <div>Size: ${foundResource.size || 'N/A'}</div>
+              `;
+            }
+            break;
+          case 'lambda':
+            foundResource = data.lambdaFunctions?.find((lambda: any) => lambda.id === resourceId);
+            if (foundResource) {
+              resourceContent = `
+                <div class="font-medium">Lambda Function</div>
+                <div class="mt-1">ID: ${foundResource.id}</div>
+                <div>Name: ${foundResource.name || 'N/A'}</div>
+                <div>Runtime: ${foundResource.runtime || 'N/A'}</div>
+                <div>Memory: ${foundResource.memory || 'N/A'} MB</div>
+              `;
+            }
+            break;
+        }
+        
+        if (resourceContent) {
+          setHoveredResource(foundResource);
+          showTooltip(resourceContent, e.clientX, e.clientY);
+          return;
+        }
+      }
+    }
+    
+    setHoveredResource(null);
+    setHoveredConnection(null);
+    hideTooltip();
+  };
+  
+  const handleCanvasMouseLeave = () => {
+    setHoveredResource(null);
+    setHoveredConnection(null);
+    hideTooltip();
+  };
+  
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button === 0) { // Left mouse button
+      setIsDragging(true);
+      setStartPan({ x: e.clientX, y: e.clientY });
+    }
+  };
+  
+  const handleCanvasMouseUp = () => {
+    setIsDragging(false);
+  };
+  
+  const handleZoom = (values: number[]) => {
+    setZoomLevel(values);
+  };
+  
+  const distanceToLineSegment = (p: {x: number, y: number}, v: {x: number, y: number}, w: {x: number, y: number}) => {
+    const lenSq = (v.x - w.x) ** 2 + (v.y - w.y) ** 2;
+    if (lenSq === 0) return Math.sqrt((p.x - v.x) ** 2 + (p.y - v.y) ** 2);
+    
+    let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    
+    const nearestX = v.x + t * (w.x - v.x);
+    const nearestY = v.y + t * (w.y - v.y);
+    
+    return Math.sqrt((p.x - nearestX) ** 2 + (p.y - nearestY) ** 2);
+  };
+  
+  const toggleConnections = () => {
+    setShowAllConnections(!showAllConnections);
+  };
+  
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const resizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        if (entry.target === containerRef.current && canvasRef.current) {
+          const { width, height } = entry.contentRect;
+          canvasRef.current.width = width;
+          canvasRef.current.height = height;
+        }
+      }
+    });
+    
+    resizeObserver.observe(containerRef.current);
+    
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+  
+  return (
+    <div className="relative w-full h-full" ref={containerRef}>
+      <canvas
+        ref={canvasRef}
+        className={`w-full h-full ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        onClick={handleCanvasClick}
+        onMouseMove={handleCanvasMouseMove}
+        onMouseLeave={handleCanvasMouseLeave}
+        onMouseDown={handleCanvasMouseDown}
+        onMouseUp={handleCanvasMouseUp}
+      />
+      
+      <div className="absolute bottom-4 left-4 flex flex-col gap-2">
+        <div className="bg-white dark:bg-gray-800 p-2 rounded-md shadow-md flex items-center gap-2">
+          <label className="text-sm whitespace-nowrap">Zoom:</label>
+          <Slider
+            className="w-32"
+            value={zoomLevel}
+            onValueChange={handleZoom}
+            min={0.5}
+            max={2}
+            step={0.1}
+          />
+          <span className="text-sm">{Math.round(zoomLevel[0] * 100)}%</span>
+        </div>
+        
+        <div className="bg-white dark:bg-gray-800 p-2 rounded-md shadow-md">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleConnections}
+              className={showAllConnections ? "bg-blue-100 dark:bg-blue-900" : ""}
+            >
+              {showAllConnections ? "Hide Connections" : "Show Connections"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
