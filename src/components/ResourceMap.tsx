@@ -293,7 +293,9 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       
       // Draw connections between EC2 and RDS
       if (visibleResources.includes('ec2') && visibleResources.includes('rds')) {
-        data.connections.forEach((connection: any) => {
+        data.connections.filter((conn: any) => 
+          conn.sourceType === 'ec2' && conn.targetType === 'rds'
+        ).forEach((connection: any) => {
           const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
           const targetPos = resourcePositions[`rds-${connection.targetId}`];
           
@@ -310,6 +312,71 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
           
           if (connection.status === 'allowed') {
             ctx.strokeStyle = '#22c55e';
+            ctx.setLineDash([]);
+          } else {
+            ctx.strokeStyle = '#ef4444';
+            ctx.setLineDash([5, 3]);
+          }
+          
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.setLineDash([]);
+          
+          const angle = Math.atan2(targetY - sourceY, targetX - sourceX);
+          const arrowSize = 8;
+          
+          ctx.beginPath();
+          ctx.moveTo(
+            targetX - arrowSize * Math.cos(angle) + arrowSize * Math.sin(angle),
+            targetY - arrowSize * Math.sin(angle) - arrowSize * Math.cos(angle)
+          );
+          ctx.lineTo(targetX, targetY);
+          ctx.lineTo(
+            targetX - arrowSize * Math.cos(angle) - arrowSize * Math.sin(angle),
+            targetY - arrowSize * Math.sin(angle) + arrowSize * Math.cos(angle)
+          );
+          ctx.stroke();
+          
+          if (connection.status === 'blocked') {
+            const midX = (sourceX + targetX) / 2;
+            const midY = (sourceY + targetY) / 2;
+            
+            ctx.fillStyle = '#fef2f2';
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(midX, midY, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = '#ef4444';
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText('!', midX - 3, midY + 5);
+          }
+        });
+      }
+      
+      // Draw connections between EC2 and Lambda
+      if (visibleResources.includes('ec2') && visibleResources.includes('lambda')) {
+        data.connections.filter((conn: any) => 
+          conn.sourceType === 'ec2' && conn.targetType === 'lambda'
+        ).forEach((connection: any) => {
+          const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
+          const targetPos = resourcePositions[`lambda-${connection.targetId}`];
+          
+          if (!sourcePos || !targetPos) return;
+          
+          const sourceX = sourcePos.x + sourcePos.width/2;
+          const sourceY = sourcePos.y + sourcePos.height/2;
+          const targetX = targetPos.x + targetPos.width/2;
+          const targetY = targetPos.y + targetPos.height/2;
+          
+          ctx.beginPath();
+          ctx.moveTo(sourceX, sourceY);
+          ctx.lineTo(targetX, targetY);
+          
+          if (connection.status === 'allowed') {
+            ctx.strokeStyle = '#a855f7'; // Purple for EC2-Lambda connections
             ctx.setLineDash([]);
           } else {
             ctx.strokeStyle = '#ef4444';
@@ -633,536 +700,4 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     const y = (e.clientY - rect.top - pan.y * zoomLevel[0]) / zoomLevel[0];
     
     for (const [key, pos] of Object.entries(resourcePositions)) {
-      const [type, id] = key.split('-');
-      if (!visibleResources.includes(type)) continue;
-      
-      const { x: posX, y: posY, width, height } = pos as any;
-      if (x >= posX && x <= posX + width && y >= posY && y <= posY + height) {
-        let resource;
-        switch (type) {
-          case 'vpc':
-            resource = data.vpcs.find((vpc: any) => vpc.id === id);
-            break;
-          case 'subnet':
-            resource = data.vpcs.flatMap((vpc: any) => vpc.subnets).find((subnet: any) => subnet.id === id);
-            break;
-          case 'ec2':
-            resource = data.ec2Instances.find((ec2: any) => ec2.id === id);
-            break;
-          case 'rds':
-            resource = data.rdsInstances.find((rds: any) => rds.id === id);
-            break;
-          case 'igw':
-            resource = data.vpcs
-              .filter((vpc: any) => vpc.internetGateway)
-              .map((vpc: any) => vpc.internetGateway)
-              .find((igw: any) => igw.id === id);
-            break;
-          case 'lambda':
-            resource = data.lambdaFunctions.find((lambda: any) => lambda.id === id);
-            break;
-        }
-        
-        if (resource) {
-          onResourceClick({ ...resource, type });
-          return;
-        }
-      }
-    }
-    
-    for (const connection of data.connections) {
-      const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
-      const targetPos = resourcePositions[`rds-${connection.targetId}`];
-      
-      if (!sourcePos || !targetPos) continue;
-      
-      const sourceX = sourcePos.x + sourcePos.width/2;
-      const sourceY = sourcePos.y + sourcePos.height/2;
-      const targetX = targetPos.x + targetPos.width/2;
-      const targetY = targetPos.y + targetPos.height/2;
-      
-      const distance = distanceToLine(x, y, sourceX, sourceY, targetX, targetY);
-      if (distance < 10) {
-        const source = data.ec2Instances.find((ec2: any) => ec2.id === connection.sourceId);
-        const target = data.rdsInstances.find((rds: any) => rds.id === connection.targetId);
-        
-        if (source && target) {
-          setHoveredConnection({
-            ...connection,
-            source,
-            target,
-            x: (sourceX + targetX) / 2,
-            y: (sourceY + targetY) / 2
-          });
-          return;
-        }
-      }
-    }
-  };
-
-  const distanceToLine = (x: number, y: number, x1: number, y1: number, x2: number, y2: number) => {
-    const A = x - x1;
-    const B = y - y1;
-    const C = x2 - x1;
-    const D = y2 - y1;
-    
-    const dot = A * C + B * D;
-    const len_sq = C * C + D * D;
-    const param = dot / len_sq;
-    
-    let xx, yy;
-    
-    if (param < 0) {
-      xx = x1;
-      yy = y1;
-    } else if (param > 1) {
-      xx = x2;
-      yy = y2;
-    } else {
-      xx = x1 + param * C;
-      yy = y1 + param * D;
-    }
-    
-    const dx = x - xx;
-    const dy = y - yy;
-    
-    return Math.sqrt(dx * dx + dy * dy);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current || !data) return;
-    
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const x = (mouseX - pan.x * zoomLevel[0]) / zoomLevel[0];
-    const y = (mouseY - pan.y * zoomLevel[0]) / zoomLevel[0];
-    
-    if (isDragging) {
-      const dx = (mouseX - startPan.x) / zoomLevel[0];
-      const dy = (mouseY - startPan.y) / zoomLevel[0];
-      
-      setPan({
-        x: pan.x + dx,
-        y: pan.y + dy
-      });
-      
-      setStartPan({
-        x: mouseX,
-        y: mouseY
-      });
-      
-      hideTooltip();
-      return;
-    }
-    
-    let foundResource = false;
-    for (const [key, pos] of Object.entries(resourcePositions)) {
-      const [type, id] = key.split('-');
-      if (!visibleResources.includes(type)) continue;
-      
-      const { x: posX, y: posY, width, height } = pos as any;
-      if (x >= posX && x <= posX + width && y >= posY && y <= posY + height) {
-        let resource;
-        switch (type) {
-          case 'vpc':
-            resource = data.vpcs.find((vpc: any) => vpc.id === id);
-            if (resource) {
-              const tooltipContent = generateResourceTooltip({
-                ...resource,
-                type
-              });
-              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
-              foundResource = true;
-            }
-            break;
-          case 'subnet':
-            resource = data.vpcs.flatMap((vpc: any) => vpc.subnets).find((subnet: any) => subnet.id === id);
-            if (resource) {
-              const tooltipContent = generateResourceTooltip({
-                ...resource,
-                type
-              });
-              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
-              foundResource = true;
-            }
-            break;
-          case 'ec2':
-            resource = data.ec2Instances.find((ec2: any) => ec2.id === id);
-            if (resource) {
-              const tooltipContent = generateResourceTooltip({
-                ...resource,
-                type
-              });
-              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
-              foundResource = true;
-            }
-            break;
-          case 'rds':
-            resource = data.rdsInstances.find((rds: any) => rds.id === id);
-            if (resource) {
-              const tooltipContent = generateResourceTooltip({
-                ...resource,
-                type
-              });
-              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
-              foundResource = true;
-            }
-            break;
-          case 'igw':
-            resource = data.vpcs
-              .filter((vpc: any) => vpc.internetGateway)
-              .map((vpc: any) => vpc.internetGateway)
-              .find((igw: any) => igw.id === id);
-            if (resource) {
-              const tooltipContent = generateResourceTooltip({
-                ...resource,
-                type
-              });
-              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
-              foundResource = true;
-            }
-            break;
-          case 'lambda':
-            resource = data.lambdaFunctions.find((lambda: any) => lambda.id === id);
-            if (resource) {
-              const tooltipContent = generateResourceTooltip({
-                ...resource,
-                type
-              });
-              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
-              foundResource = true;
-            }
-            break;
-        }
-        if (foundResource) break;
-      }
-    }
-    
-    if (!foundResource) {
-      let foundConnection = false;
-      // Check for hovering over connection lines
-      if (showAllConnections) {
-        // Check EC2 to RDS connections
-        for (const connection of data.connections) {
-          const sourcePos = resourcePositions[`ec2-${connection.sourceId}`];
-          const targetPos = resourcePositions[`rds-${connection.targetId}`];
-          
-          if (!sourcePos || !targetPos) continue;
-          
-          const sourceX = sourcePos.x + sourcePos.width/2;
-          const sourceY = sourcePos.y + sourcePos.height/2;
-          const targetX = targetPos.x + targetPos.width/2;
-          const targetY = targetPos.y + targetPos.height/2;
-          
-          const distance = distanceToLine(x, y, sourceX, sourceY, targetX, targetY);
-          if (distance < 10) {
-            const source = data.ec2Instances.find((ec2: any) => ec2.id === connection.sourceId);
-            const target = data.rdsInstances.find((rds: any) => rds.id === connection.targetId);
-            
-            if (source && target) {
-              const tooltipContent = generateConnectionTooltip({
-                ...connection,
-                source,
-                target
-              });
-              showTooltip(tooltipContent, e.clientX, e.clientY - 10);
-              foundConnection = true;
-              break;
-            }
-          }
-        }
-        
-        // Check Lambda to RDS connections
-        if (!foundConnection && visibleResources.includes('lambda') && visibleResources.includes('rds') && data.lambdaFunctions) {
-          data.lambdaFunctions.forEach((lambda: any) => {
-            if (!lambda.vpcId) return;
-            
-            const lambdaPos = resourcePositions[`lambda-${lambda.id}`];
-            if (!lambdaPos) return;
-            
-            data.rdsInstances.forEach((rds: any) => {
-              if (lambda.vpcId !== rds.vpcId) return;
-              
-              const rdsPos = resourcePositions[`rds-${rds.id}`];
-              if (!rdsPos) return;
-              
-              const sourceX = lambdaPos.x + lambdaPos.width/2;
-              const sourceY = lambdaPos.y + lambdaPos.height/2;
-              const targetX = rdsPos.x + rdsPos.width/2;
-              const targetY = rdsPos.y + rdsPos.height/2;
-              
-              const distance = distanceToLine(x, y, sourceX, sourceY, targetX, targetY);
-              if (distance < 10) {
-                const tooltipContent = `
-                  <div class="space-y-2">
-                    <div class="font-medium">Lambda to RDS Connection</div>
-                    <div class="text-sm">From: ${lambda.name}</div>
-                    <div class="text-sm">To: ${rds.id}</div>
-                    <div class="text-sm text-blue-600">Function can access database</div>
-                  </div>
-                `;
-                showTooltip(tooltipContent, e.clientX, e.clientY - 10);
-                foundConnection = true;
-              }
-            });
-          });
-        }
-      }
-      
-      if (!foundConnection) {
-        hideTooltip();
-      }
-    }
-  };
-
-  const generateResourceTooltip = (resource: any) => {
-    if (!resource) return '';
-    
-    let html = '';
-    
-    switch (resource.type) {
-      case 'vpc':
-        html = `
-          <div class="space-y-2">
-            <div class="font-medium">${resource.name || ''}</div>
-            <div class="text-sm">ID: ${resource.id || ''}</div>
-            <div class="text-sm">CIDR: ${resource.cidr || ''}</div>
-            <div class="text-sm">Subnets: ${resource.subnetCount || '0'}</div>
-            <div class="text-sm">Instances: ${resource.instanceCount || '0'}</div>
-            <div class="text-sm">State: ${resource.state || ''}</div>
-          </div>
-        `;
-        break;
-      case 'subnet':
-        html = `
-          <div class="space-y-2">
-            <div class="font-medium">${resource.name || ''}</div>
-            <div class="text-sm">ID: ${resource.id || ''}</div>
-            <div class="text-sm">CIDR: ${resource.cidr || ''}</div>
-            <div class="text-sm">AZ: ${resource.az || ''}</div>
-            <div class="text-sm">Type: ${resource.isPublic ? 'Public' : 'Private'}</div>
-            <div class="text-sm">EC2: ${resource.ec2Count || '0'} instances</div>
-            <div class="text-sm">RDS: ${resource.rdsCount || '0'} instances</div>
-          </div>
-        `;
-        break;
-      case 'ec2':
-        html = `
-          <div class="space-y-2">
-            <div class="font-medium">${resource.name || resource.id || ''}</div>
-            <div class="text-sm">ID: ${resource.id || ''}</div>
-            <div class="text-sm">Type: ${resource.instanceType || ''}</div>
-            <div class="text-sm">State: ${resource.state || ''}</div>
-            <div class="text-sm">IP: ${resource.privateIp || ''}</div>
-            ${resource.publicIp ? `<div class="text-sm">Public IP: ${resource.publicIp}</div>` : ''}
-            <div class="text-sm">Security Groups: ${resource.securityGroups?.length || 0}</div>
-          </div>
-        `;
-        break;
-      case 'rds':
-        html = `
-          <div class="space-y-2">
-            <div class="font-medium">${resource.id || ''}</div>
-            ${resource.dbName ? `<div class="text-sm">DB Name: ${resource.dbName}</div>` : ''}
-            <div class="text-sm">Engine: ${resource.engine || ''} ${resource.engineVersion || ''}</div>
-            <div class="text-sm">Status: ${resource.status || ''}</div>
-            <div class="text-sm">Endpoint: ${resource.endpoint || ''}</div>
-            <div class="text-sm">Port: ${resource.port || ''}</div>
-            <div class="text-sm">Security Groups: ${resource.securityGroups?.length || 0}</div>
-          </div>
-        `;
-        break;
-      case 'igw':
-        html = `
-          <div class="space-y-2">
-            <div class="font-medium">Internet Gateway</div>
-            <div class="text-sm">ID: ${resource.id || ''}</div>
-            <div class="text-sm">State: ${resource.state || ''}</div>
-            <div class="text-sm">VPC: ${resource.vpcName || ''}</div>
-          </div>
-        `;
-        break;
-      case 'lambda':
-        html = `
-          <div class="space-y-2">
-            <div class="font-medium">${resource.name || ''}</div>
-            <div class="text-sm">Runtime: ${resource.runtime || ''}</div>
-            <div class="text-sm">Memory: ${resource.memory || ''}MB</div>
-            <div class="text-sm">Timeout: ${resource.timeout || ''}s</div>
-            <div class="text-sm">Last Modified: ${resource.lastModified ? new Date(resource.lastModified).toLocaleString() : ''}</div>
-            ${resource.vpcId ? `<div class="text-sm">VPC: ${resource.vpcName || resource.vpcId}</div>` : '<div class="text-sm">VPC: Not in VPC</div>'}
-            <div class="text-sm">Security Groups: ${resource.securityGroups?.length || 0}</div>
-          </div>
-        `;
-        break;
-      default:
-        html = `<div>No details available</div>`;
-    }
-    
-    return html;
-  };
-
-  const generateConnectionTooltip = (connection: any) => {
-    if (!connection) return '';
-    
-    if (connection.status === 'blocked') {
-      return `
-        <div class="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 p-3 rounded-md border border-red-200 dark:border-red-800 max-w-xs">
-          <div class="flex items-start space-x-2">
-            <div>
-              <div class="font-medium">Connection Blocked</div>
-              <div class="text-sm mt-1">${connection.errorMessage || 'Security group rules blocking traffic'}</div>
-              <div class="text-xs mt-2">
-                From: ${connection.source?.name || connection.source?.id || ''}<br />
-                To: ${connection.target?.id || ''}
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    } else {
-      return `
-        <div class="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 p-3 rounded-md border border-green-200 dark:border-green-800 max-w-xs">
-          <div class="flex items-start space-x-2">
-            <div>
-              <div class="font-medium">Connection Allowed</div>
-              <div class="text-xs mt-2">
-                From: ${connection.source?.name || connection.source?.id || ''}<br />
-                To: ${connection.target?.id || ''}
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-  };
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current) return;
-    
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    
-    setIsDragging(true);
-    setStartPan({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    });
-    
-    canvas.style.cursor = 'grabbing';
-    
-    hideTooltip();
-  };
-
-  const handleMouseUp = () => {
-    if (!canvasRef.current) return;
-    
-    setIsDragging(false);
-    canvasRef.current.style.cursor = 'grab';
-  };
-
-  const handleMouseLeave = () => {
-    if (!canvasRef.current) return;
-    
-    setIsDragging(false);
-    canvasRef.current.style.cursor = 'grab';
-    
-    hideTooltip();
-    
-    setHoveredResource(null);
-    setHoveredConnection(null);
-    
-    if (tooltipTimeout) {
-      clearTimeout(tooltipTimeout);
-    }
-  };
-
-  const handleZoomChange = (newZoom: number[]) => {
-    setZoomLevel(newZoom);
-    
-    hideTooltip();
-  };
-
-  const handleResetView = () => {
-    setPan({ x: 0, y: 0 });
-    setZoomLevel([1]);
-    
-    hideTooltip();
-  };
-
-  const toggleConnections = () => {
-    setShowAllConnections(!showAllConnections);
-  };
-  
-  useEffect(() => {
-    if (!canvasRef.current || !containerRef.current) return;
-    
-    const resizeCanvas = () => {
-      if (!canvasRef.current || !containerRef.current) return;
-      
-      const { width, height } = containerRef.current.getBoundingClientRect();
-      
-      canvasRef.current.width = width * 2;
-      canvasRef.current.height = height * 2;
-      canvasRef.current.style.width = `${width}px`;
-      canvasRef.current.style.height = `${height}px`;
-      
-      const ctx = canvasRef.current.getContext('2d');
-      if (ctx) {
-        ctx.scale(2, 2);
-      }
-      
-      setScale(2);
-    };
-    
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    
-    return () => {
-      window.removeEventListener('resize', resizeCanvas);
-    };
-  }, []);
-
-  return (
-    <TooltipProvider>
-      <div className="relative w-full h-full overflow-hidden" ref={containerRef}>
-        <canvas
-          ref={canvasRef}
-          onClick={handleCanvasClick}
-          onMouseMove={handleMouseMove}
-          onMouseDown={handleMouseDown}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
-          className="cursor-grab"
-        />
-        
-        <div className="absolute bottom-4 left-4 flex flex-col space-y-2">
-          <Button variant="outline" size="sm" onClick={handleResetView}>
-            Reset View
-          </Button>
-          <Button 
-            variant={showAllConnections ? "default" : "outline"} 
-            size="sm" 
-            onClick={toggleConnections}
-            className="flex items-center gap-2"
-          >
-            <Network size={16} />
-            {showAllConnections ? "Hide Connections" : "Show Connections"}
-          </Button>
-          <div className="bg-white dark:bg-gray-800 p-2 rounded shadow-md">
-            <Slider
-              value={zoomLevel}
-              onValueChange={handleZoomChange}
-              min={0.5}
-              max={2}
-              step={0.1}
-              className="w-32"
-            />
-          </div>
-        </div>
-      </div>
-    </TooltipProvider>
-  );
-};
+      const

@@ -1,3 +1,4 @@
+
 import { 
   EC2Client, 
   DescribeVpcsCommand, 
@@ -417,6 +418,89 @@ export class AwsService {
         connections.push({
           sourceId: ec2.id,
           targetId: rds.id,
+          sourceType: 'ec2',
+          targetType: 'rds',
+          status: connectionAllowed ? 'allowed' : 'blocked',
+          errorMessage
+        });
+      });
+    });
+    
+    // Check connections between EC2 and Lambda functions
+    processedEC2.forEach(ec2 => {
+      processedLambdas.forEach(lambda => {
+        // Skip if Lambda is not in a VPC
+        if (!lambda.vpcId) return;
+        
+        // Get security groups for both resources
+        const ec2SGIds = ec2.securityGroups.map(sg => sg.groupId);
+        const lambdaSGIds = lambda.securityGroups.map(sg => sg.groupId);
+        
+        // If they don't share the same VPC, they can't connect directly
+        if (ec2.vpcId !== lambda.vpcId) {
+          connections.push({
+            sourceId: ec2.id,
+            targetId: lambda.id,
+            sourceType: 'ec2',
+            targetType: 'lambda',
+            status: 'blocked',
+            errorMessage: 'EC2 and Lambda are in different VPCs'
+          });
+          return;
+        }
+        
+        // Check if Lambda security groups allow inbound from EC2 security groups
+        let connectionAllowed = false;
+        let errorMessage = null;
+        
+        // Find the security group objects
+        const lambdaSGs = lambdaSGIds.map(sgId => processedSGs.find(sg => sg.id === sgId)).filter(Boolean);
+        
+        // Check inbound rules on Lambda security groups
+        for (const lambdaSG of lambdaSGs) {
+          for (const inboundRule of lambdaSG.inboundRules) {
+            // Check if rule allows traffic from EC2 security groups
+            if (ec2SGIds.includes(inboundRule.source)) {
+              connectionAllowed = true;
+              break;
+            }
+          }
+          if (connectionAllowed) break;
+        }
+        
+        // Also check if EC2 security groups allow outbound to Lambda security groups
+        if (connectionAllowed) {
+          // Find the EC2 security group objects
+          const ec2SGs = ec2SGIds.map(sgId => processedSGs.find(sg => sg.id === sgId)).filter(Boolean);
+          
+          // Check outbound rules
+          let outboundAllowed = false;
+          for (const ec2SG of ec2SGs) {
+            for (const outboundRule of ec2SG.outboundRules) {
+              // Check if rule allows traffic to Lambda security groups or has an "allow all" rule
+              if (lambdaSGIds.includes(outboundRule.destination) || 
+                  outboundRule.destination === '0.0.0.0/0' ||
+                  outboundRule.protocol === '-1') {
+                outboundAllowed = true;
+                break;
+              }
+            }
+            if (outboundAllowed) break;
+          }
+          
+          if (!outboundAllowed) {
+            connectionAllowed = false;
+            errorMessage = `EC2 (${ec2.id}) security groups don't allow outbound to Lambda (${lambda.id})`;
+          }
+        } else {
+          errorMessage = `Lambda (${lambda.id}) security groups don't allow inbound from EC2 (${ec2.id})`;
+        }
+        
+        connections.push({
+          sourceId: ec2.id,
+          targetId: lambda.id,
+          sourceType: 'ec2',
+          targetType: 'lambda',
           status: connectionAllowed ? 'allowed' : 'blocked',
           errorMessage
         });
