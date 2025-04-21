@@ -1,3 +1,4 @@
+
 import { useRef, useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -36,6 +37,10 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   const [showAllConnections, setShowAllConnections] = useState(true);
 
   useEffect(() => {
+    console.log("ResourceMap initialized");
+    console.log("Data received:", data);
+    console.log("Visible resources:", visibleResources);
+    
     const logoSources = {
       ec2: ec2Logo,
       rds: rdsLogo,
@@ -45,16 +50,23 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       sg: sgLogo
     };
     
+    console.log("Loading AWS logos:", logoSources);
+    
     const loadedImages: Record<string, HTMLImageElement> = {};
     
     Object.entries(logoSources).forEach(([key, src]) => {
       const img = new Image();
       img.src = src;
       img.onload = () => {
+        console.log(`Logo loaded: ${key}`);
         loadedImages[key] = img;
         if (Object.keys(loadedImages).length === Object.keys(logoSources).length) {
+          console.log("All logos loaded successfully");
           setAwsLogos(loadedImages);
         }
+      };
+      img.onerror = (err) => {
+        console.error(`Error loading logo ${key}:`, err);
       };
     });
   }, []);
@@ -99,8 +111,12 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   };
 
   useEffect(() => {
-    if (!data) return;
+    if (!data) {
+      console.log("No data available for resource positioning");
+      return;
+    }
     
+    console.log("Calculating resource positions");
     const positions: any = {};
     
     const vpcsCount = data.vpcs.length;
@@ -230,15 +246,28 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
       });
     }
     
+    console.log("Resource positions calculated:", Object.keys(positions).length);
     setResourcePositions(positions);
   }, [data]);
 
   useEffect(() => {
-    if (!canvasRef.current || !data || Object.keys(resourcePositions).length === 0 || Object.keys(awsLogos).length === 0) return;
+    if (!canvasRef.current || !data || Object.keys(resourcePositions).length === 0 || Object.keys(awsLogos).length === 0) {
+      console.log("Canvas rendering skipped:", {
+        canvasReady: !!canvasRef.current,
+        dataReady: !!data,
+        positionsReady: Object.keys(resourcePositions).length > 0,
+        logosReady: Object.keys(awsLogos).length > 0
+      });
+      return;
+    }
     
+    console.log("Canvas rendering started");
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.error("Failed to get canvas context");
+      return;
+    }
     
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -687,6 +716,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
         ctx.fillText(lambdaIdText, pos.x, pos.y - 5);
       });
     }
+    console.log("Canvas rendering completed");
   }, [data, resourcePositions, visibleResources, awsLogos, pan, zoomLevel, showAllConnections]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -988,10 +1018,12 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
   useEffect(() => {
     if (!containerRef.current) return;
     
+    console.log("Setting up canvas resize observer");
     const resizeObserver = new ResizeObserver(entries => {
       for (const entry of entries) {
         if (entry.target === containerRef.current && canvasRef.current) {
           const { width, height } = entry.contentRect;
+          console.log(`Canvas resized to ${width}x${height}`);
           canvasRef.current.width = width;
           canvasRef.current.height = height;
         }
@@ -1001,6 +1033,7 @@ export const ResourceMap = ({ data, onResourceClick, visibleResources }: Resourc
     resizeObserver.observe(containerRef.current);
     
     return () => {
+      console.log("Cleaning up resize observer");
       resizeObserver.disconnect();
     };
   }, []);
