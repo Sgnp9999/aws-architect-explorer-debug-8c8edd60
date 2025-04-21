@@ -7,12 +7,12 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-import ec2Logo from "../assets/aws-logos/ec2.svg";
-import rdsLogo from "../assets/aws-logos/rds.svg";
-import vpcLogo from "../assets/aws-logos/vpc.svg";
-import igwLogo from "../assets/aws-logos/igw.svg";
-import subnetLogo from "../assets/aws-logos/subnet.svg";
-import sgLogo from "../assets/aws-logos/sg.svg";
+import ec2Logo from "../assets/aws-logos/ec2.png";
+import rdsLogo from "../assets/aws-logos/rds.png";
+import vpcLogo from "../assets/aws-logos/vpc.png";
+import igwLogo from "../assets/aws-logos/igw.png";
+import subnetLogo from "../assets/aws-logos/subnet.png";
+import sgLogo from "../assets/aws-logos/sg.png";
 
 interface ResourceMapProps {
   data: any;
